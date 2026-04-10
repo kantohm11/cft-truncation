@@ -223,3 +223,51 @@ Given three states $|\alpha_i\rangle = J^{a_1}_{-n_1}\cdots J^{a_r}_{-n_r}|h_i;\
 4. **Build the vertex tensor** (once per $\ell$ and $h_{\max}$): Sweep over triples of states in order of increasing total level $N_{\text{tot}} = N_L + N_R + N_T$. At $N_{\text{tot}} = 0$, evaluate the primary vertex (Section 4.1). At each higher level, apply the Ward identity (Section 3.4) once per entry to reduce to already-computed entries at lower total level.
 
 Steps 1–3 are geometry (CFT-independent). Step 4 uses the CFT data (boundary OPE coefficients and representation matrices) and produces the finite tensor $V_\ell^{(h_{\max})}$, the elementary interaction vertex of the lattice model.
+
+---
+
+## 7. Tensor Structure and the BPZ Bilinear Form
+
+### 7.1 Spaces
+
+The three arms of the T-shape carry two distinct types of Fock space:
+
+- **Bond space** $V_{\text{bond}}$: the truncated Fock space on the horizontal arms ($L$, $R$). Both arms carry the same space. Truncated at $h_{\text{bond}}$.
+- **Physical space** $V_{\text{phys}}$: the truncated Fock space on the vertical arm ($T$). Truncated at $h_{\text{phys}}$ (which may differ from $h_{\text{bond}}$).
+
+Both spaces are $U(1)$-graded by momentum quantum number $n$.
+
+### 7.2 The vertex as a trilinear form
+
+The recursion of Section 3.4 directly computes the amplitude $V_\ell(\alpha_T, \alpha_L, \alpha_R) \in \mathbb{C}$ for each triple of states. This defines a **trilinear form**:
+
+$$V : V_{\text{phys}} \otimes V_{\text{bond}} \otimes V_{\text{bond}} \longrightarrow \mathbb{C}.$$
+
+In TensorKit notation, this is a `TensorMap` with trivial codomain $\mathbb{C}$ and domain $V_{\text{phys}} \otimes V_{\text{bond}} \otimes V_{\text{bond}}$. The $U(1)$ grading automatically enforces the selection rule $n_T + n_L + n_R = 0$.
+
+### 7.3 The BPZ bilinear form
+
+The BPZ conjugation provides a bilinear form on the bond space:
+
+$$\eta : V_{\text{bond}} \otimes V_{\text{bond}} \longrightarrow \mathbb{C},$$
+
+which is diagonal in the normalised descendant basis with entries $(-1)^{N}$, where $N = |\lambda|$ is the descendant level of the state. This is a `TensorMap` with trivial codomain.
+
+By adjointing one leg, this bilinear form yields a **conjugation map**:
+
+$$\eta_{\text{map}} : V_{\text{bond}}' \longrightarrow V_{\text{bond}},$$
+
+also diagonal with entries $(-1)^N$.
+
+### 7.4 The operator form (MPO tensor)
+
+For lattice contraction, one needs the vertex in **operator form**:
+
+$$V_{\text{op}} : V_{\text{phys}} \otimes V_{\text{bond}} \longrightarrow V_{\text{bond}}.$$
+
+This is obtained in two steps:
+
+1. **Adjoint one bond leg** of the trilinear vertex to get $V_{\text{phys}} \otimes V_{\text{bond}} \to V_{\text{bond}}'$.
+2. **Compose with the BPZ map** $\eta_{\text{map}} : V_{\text{bond}}' \to V_{\text{bond}}$ to get $V_{\text{phys}} \otimes V_{\text{bond}} \to V_{\text{bond}}$.
+
+The resulting $V_{\text{op}}$ is the MPS tensor used when gluing neighbouring plaquettes in the lattice model. (The cross vertex, with four legs, would give an MPO tensor.) When two plaquettes share a bond, the contraction is performed using the BPZ inner product $\eta$ on the shared bond space.

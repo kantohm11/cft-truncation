@@ -601,9 +601,35 @@ d = length(basis.states[1])
 
 ---
 
-## 7. BPZ Conjugation Map
+## 7. BPZ Bilinear Form and Conjugation Map
 
-### 7.1 Diagonal with $(-1)^N$ entries
+### 7.0 BPZ bilinear form $\eta_{\text{form}} : V_{\text{bond}} \otimes V_{\text{bond}} \to \mathbb{C}$
+
+The BPZ bilinear form is a TensorMap with trivial codomain.
+
+```julia
+basis = build_fock_basis(1.0, 3.0)
+η_form = build_bpz_form(basis)
+
+# Codomain is trivial (ℂ), domain is V ⊗ V
+@test codomain(η_form) == one(basis.V)
+@test domain(η_form) == basis.V ⊗ basis.V
+
+# Evaluate on two basis vectors: ⟨e_α, η, e_β⟩ = (-1)^level · δ_{αβ}
+u = ket(basis, 0, 1)    # primary |∅; 0⟩, level 0
+v = ket(basis, 0, 2)    # |[1]; 0⟩, level 1
+
+@tensor val_uu[] := η_form[; a, b] * u[a] * u[b]
+@test scalar(val_uu) ≈ 1.0     # (-1)^0 = +1
+
+@tensor val_vv[] := η_form[; a, b] * v[a] * v[b]
+@test scalar(val_vv) ≈ -1.0    # (-1)^1 = -1
+
+@tensor val_uv[] := η_form[; a, b] * u[a] * v[b]
+@test abs(scalar(val_uv)) < 1e-15   # orthogonal sectors
+```
+
+### 7.1 Conjugation map: diagonal with $(-1)^N$ entries
 
 ```julia
 basis = build_fock_basis(1.0, 3.0)
@@ -795,7 +821,23 @@ B = charge_block(vd, 1, -1, 0)
 @test B[2, 1, 1] ≈ expected       # α_L=2 (=[1] in sector 1), α_R=1 (=∅), α_T=1 (=∅)
 ```
 
-### 9.5 Block structure: zero outside conservation
+### 9.5 Tensor structure of the vertex
+
+The vertex is a trilinear form $V_{\text{phys}} \otimes V_{\text{bond}} \otimes V_{\text{bond}} \to \mathbb{C}$.  The derived operator form $V_{\text{phys}} \otimes V_{\text{bond}} \to V_{\text{bond}}$ is obtained by adjointing one bond leg and composing with the BPZ map.
+
+```julia
+vd = compute_vertex(R=1.0, ℓ=1.0, trunc=TruncationSpec(2.0))
+
+# Trilinear form: codomain is ℂ, domain is V_phys ⊗ V_bond ⊗ V_bond
+@test codomain(vd.vertex) == one(vd.basis_phys.V)
+@test domain(vd.vertex) == vd.basis_phys.V ⊗ vd.basis_bond.V ⊗ vd.basis_bond.V
+
+# Operator form: codomain is V_bond, domain is V_phys ⊗ V_bond
+@test codomain(vd.vertex_op) == vd.basis_bond.V
+@test domain(vd.vertex_op) == vd.basis_phys.V ⊗ vd.basis_bond.V
+```
+
+### 9.6 Block structure: zero outside conservation
 
 The `TensorMap` should have no block for charge triples that violate $n_L + n_R + n_T = 0$.  This is structural (enforced by TensorKit), but verify:
 
@@ -811,7 +853,7 @@ n_expected = count((nL, nR) -> haskey(vd.basis_bond.states, nL) &&
 @test n_blocks == n_expected
 ```
 
-### 9.6 Frobenius norm grows with truncation
+### 9.7 Frobenius norm grows with truncation
 
 A basic sanity check: the vertex should have nonzero norm, and adding more states should change it.
 
@@ -824,13 +866,14 @@ vd2 = compute_vertex(R=1.0, ℓ=1.0, trunc=TruncationSpec(2.0); geom, neumann)
 @test norm(vd2.vertex) > norm(vd1.vertex)
 ```
 
-### 9.7 Different bond and physical truncations
+### 9.8 Different bond and physical truncations
 
 ```julia
 vd_asym = compute_vertex(R=1.0, ℓ=1.0, trunc=TruncationSpec(h_bond=2.0, h_phys=3.0))
 
 @test bond_dim(vd_asym) < phys_dim(vd_asym)
-@test dim(codomain(vd_asym.vertex)) == bond_dim(vd_asym)
+# Operator form: codomain is V_bond
+@test dim(codomain(vd_asym.vertex_op)) == bond_dim(vd_asym)
 
 # Primary vertex should still be correct
 B = charge_block(vd_asym, 0, 0, 0)
