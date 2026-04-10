@@ -4,7 +4,7 @@ using CFTTruncation
 @testset "CFTTruncation" begin
     include("test_trunclaurent.jl")
     include("test_scmap.jl")
-    # include("test_localcoordinates.jl")
+    include("test_localcoordinates.jl")
     # include("test_neumann.jl")
     # include("test_fockspace.jl")
     # include("test_jmatrices.jl")
