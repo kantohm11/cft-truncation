@@ -7,7 +7,7 @@ using SparseArrays
 include("TruncLaurent.jl")
 include("SCMap.jl")
 include("LocalCoordinates.jl")
-# include("NeumannCoefficients.jl")
+include("NeumannCoefficients.jl")
 # include("FockSpace.jl")
 # include("JMatrices.jl")
 # include("BPZ.jl")
