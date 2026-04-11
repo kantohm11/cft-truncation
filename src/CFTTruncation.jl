@@ -11,7 +11,7 @@ include("NeumannCoefficients.jl")
 include("FockSpace.jl")
 include("JMatrices.jl")
 include("BPZ.jl")
-# include("PrimaryVertex.jl")
+include("PrimaryVertex.jl")
 # include("Recursion.jl")
 
 end
