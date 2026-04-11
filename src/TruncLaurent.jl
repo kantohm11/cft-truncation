@@ -37,11 +37,43 @@ function Base.:*(a::TruncLaurent{T}, b::TruncLaurent{S}) where {T,S}
     TruncLaurent(new_val, coeffs, prec)
 end
 
+"""
+    inv(a::TruncLaurent{T}) -> TruncLaurent{T}
+
+Multiplicative inverse of a truncated Laurent series. Handles any integer
+valuation: if `a` has valuation `v` and leading coefficient `α`, the result
+has valuation `-v` and leading coefficient `1/α`.
+
+For `v = 0` this is the standard power-series inverse via the recurrence
+`b[n] = -(1/a[0]) Σ_{j=1}^n a[j] b[n-j]`.
+For `v ≠ 0` we factor out `α·ζ^v`, invert the `(1 + h)` part, and multiply
+back by `(1/α)·ζ^{-v}`.
+"""
 function Base.inv(a::TruncLaurent{T}) where T
-    a.val != 0 && error("inv requires valuation 0, got $(a.val)")
-    a.coeffs[1] == zero(T) && error("inv requires nonzero constant term")
+    isempty(a.coeffs) && error("inv of empty series")
+    a.coeffs[1] == zero(T) && error("inv requires nonzero leading coefficient")
+
+    if a.val == 0
+        return _inv_val0(a)
+    else
+        # Factor a = α · ζ^v · (1 + h), invert the (1 + h) part,
+        # then shift by ζ^{-v}. The existing call sites that this
+        # subsumes (`_series_inv_val1`, `_invert_val1_series`) reduce
+        # the precision by `abs(v)` — we preserve that convention.
+        α = a.coeffs[1]
+        one_plus_h_coeffs = T[c / α for c in a.coeffs]
+        one_plus_h = TruncLaurent(0, one_plus_h_coeffs, a.prec)
+        inv_oph = _inv_val0(one_plus_h)
+        out_coeffs = T[c / α for c in inv_oph.coeffs]
+        return TruncLaurent(-a.val, out_coeffs, a.prec - abs(a.val))
+    end
+end
+
+# Helper: inv specialised to val=0 series (the recurrence).
+function _inv_val0(a::TruncLaurent{T}) where T
+    @assert a.val == 0
     prec = a.prec
-    n = prec - a.val  # number of output coefficients
+    n = prec
     b = zeros(T, n)
     a0inv = one(T) / a.coeffs[1]
     b[1] = a0inv
@@ -106,9 +138,10 @@ function compose(f::TruncLaurent{T}, g::TruncLaurent{S}) where {T,S}
     # f(g) = Σ c_n g^n
 
     # Start with g_power = g^(f.val)
-    # We need inv(g) if f.val < 0
+    # We need inv(g) if f.val < 0. Now that Base.inv handles val=1,
+    # we can use it directly.
     if f.val < 0
-        ginv = _series_inv_val1(g, prec)
+        ginv = inv(g)
         g_power = _series_power_val1(ginv, -f.val, prec)
     elseif f.val == 0
         g_power = TruncLaurent(0, R[one(R)], prec)
@@ -127,24 +160,6 @@ function compose(f::TruncLaurent{T}, g::TruncLaurent{S}) where {T,S}
         end
     end
     result
-end
-
-# Helper: invert a series with valuation 1 to get a Laurent series starting at ζ^(-1)
-function _series_inv_val1(g::TruncLaurent{T}, prec::Int) where T
-    # g = α*ζ*(1 + h) where h = O(ζ)
-    # g^(-1) = (1/α)*ζ^(-1)*(1+h)^(-1)
-    α = g.coeffs[1]
-    # Build (1+h) as valuation-0 series
-    n = min(length(g.coeffs), prec)
-    h_coeffs = zeros(T, prec)
-    for i in 1:n
-        h_coeffs[i] = g.coeffs[i] / α
-    end
-    one_plus_h = TruncLaurent(0, h_coeffs, prec)
-    inv_one_plus_h = inv(one_plus_h)
-    # g^(-1) = (1/α) * ζ^(-1) * inv_one_plus_h
-    out_coeffs = [c / α for c in inv_one_plus_h.coeffs]
-    TruncLaurent(-1, out_coeffs, prec - 1)
 end
 
 function _series_power_val1(g::TruncLaurent, n::Int, prec::Int)

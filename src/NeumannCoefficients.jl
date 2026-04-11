@@ -62,8 +62,8 @@ function _compute_F_polys(geom::Geometry, arm::Symbol, m_max::Int)
     a = getfield(geom.arms, arm)
     fi = a.f_series  # f_i(ζ) with val=1
 
-    # f_i^{-1} as a Laurent series
-    fi_inv = _invert_val1_series(fi)
+    # f_i^{-1} as a Laurent series (val=-1, prec = fi.prec - 1)
+    fi_inv = inv(fi)
 
     polys = Vector{TruncLaurent{ComplexF64}}(undef, m_max)
 
@@ -97,7 +97,7 @@ function _compose_Fm_with_g(Fm::TruncLaurent{ComplexF64}, arm_i::ArmData, arm_j:
         # g has val=1, so g^{-n} has val=-n. Compute each power separately.
         g = arm_j.g_series
         result = TruncLaurent(0, zeros(ComplexF64, prec), prec)
-        ginv = _invert_val1_series(g)
+        ginv = inv(g)
         ginv_power = TruncLaurent(0, ComplexF64[one(ComplexF64)], prec)  # g^0 = 1
         for n in 1:length(Fm.coeffs)
             power = Fm.val + n - 1  # the exponent: -m, -m+1, ..., -1
@@ -152,23 +152,4 @@ function _power_of(s::TruncLaurent{T}, n::Int, prec::Int) where T
         result = _truncmul(result, s, prec)
     end
     result
-end
-
-"""
-Invert a series f with valuation 1: f(ζ) = αζ(1 + h(ζ)) → f^{-1} = (1/α)ζ^{-1}(1+h)^{-1}
-"""
-function _invert_val1_series(f::TruncLaurent{T}) where T
-    α = f.coeffs[1]
-    prec = f.prec
-    # Build (1 + h) where f = α·ζ·(1+h), so (1+h) coefficients are f.coeffs[k]/α
-    n = length(f.coeffs)
-    one_plus_h_coeffs = zeros(T, n)
-    for k in 1:n
-        one_plus_h_coeffs[k] = f.coeffs[k] / α
-    end
-    one_plus_h = TruncLaurent(0, one_plus_h_coeffs, prec)
-    inv_one_plus_h = inv(one_plus_h)
-    # f^{-1} = (1/α) · ζ^{-1} · inv(1+h)
-    out_coeffs = T[c / α for c in inv_one_plus_h.coeffs]
-    TruncLaurent(-1, out_coeffs, prec - 1)
 end
