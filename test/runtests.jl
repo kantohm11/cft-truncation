@@ -8,7 +8,7 @@ using CFTTruncation
     include("test_neumann.jl")
     include("test_fockspace.jl")
     include("test_jmatrices.jl")
-    # include("test_bpz.jl")
+    include("test_bpz.jl")
     # include("test_primaryvertex.jl")
     # include("test_recursion.jl")
     # include("test_integration.jl")
