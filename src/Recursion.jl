@@ -1,64 +1,98 @@
 """
 Build the T-vertex tensor via Ward identity recursion.
+
+The primary entry point is the layered form
+    compute_vertex(cft::CompactBosonCFT, ell; series_order=20)
+which reuses the ℓ-independent CFT data (basis, J matrices, BPZ form)
+and only does the per-ℓ work (geometry + Neumann + Ward recursion).
+
+A backward-compatible kwarg form
+    compute_vertex(; R, ell, trunc, ...)
+builds the CFT data on the fly and is preserved so existing tests don't churn.
 """
 
-struct TruncationSpec
-    h_bond::Float64
-    h_phys::Float64
-end
-TruncationSpec(h::Real) = TruncationSpec(Float64(h), Float64(h))
-TruncationSpec(; h_bond::Real, h_phys::Real) = TruncationSpec(Float64(h_bond), Float64(h_phys))
-
 struct VertexData
-    vertex::TensorMap       # V_phys ⊗ V_bond ⊗ V_bond → ℂ
+    cft::CompactBosonCFT
+    vertex::TensorMap       # ℂ ← V_phys ⊗ V_bond ⊗ V_bond
     geom::Geometry
     neumann::NeumannData
-    basis_bond::FockBasis
-    basis_phys::FockBasis
-    R::Float64
     ell::Float64
     # Raw vertex values, keyed by (n_T, n_L, n_R, α_T, α_L, α_R)
     raw::Dict{NTuple{6, Int}, Float64}
 end
 
-"""
-    compute_vertex(; R, ℓ, trunc::TruncationSpec, geom=nothing, neumann=nothing)
+# Backward-compat field forwarding so existing tests that read
+# vd.basis_bond / vd.basis_phys / vd.R continue to work.
+function Base.getproperty(vd::VertexData, name::Symbol)
+    if name === :basis_bond
+        return getfield(vd, :cft).basis_bond
+    elseif name === :basis_phys
+        return getfield(vd, :cft).basis_phys
+    elseif name === :R
+        return getfield(vd, :cft).R
+    else
+        return getfield(vd, name)
+    end
+end
 
-Compute the T-vertex for the compact boson at radius R, geometry parameter ℓ,
-and truncation spec trunc. Returns VertexData.
+"""
+    compute_vertex(cft::CompactBosonCFT, ell::Real; series_order=20) -> VertexData
+
+Compute the T-vertex for the given fixed CFT data at the given ℓ. This is
+the primary entry point for ℓ-sweeps: build `cft` once with
+`CompactBosonCFT(; R, trunc=...)`, then call this for each ℓ.
+"""
+function compute_vertex(cft::CompactBosonCFT, ell::Real; series_order::Int=20)
+    geom = compute_geometry(ell, series_order)
+    neumann = compute_neumann(geom, cft.m_max)
+    _build_vertex(cft, geom, neumann, Float64(ell))
+end
+
+"""
+    compute_vertex(cft::CompactBosonCFT, geom::Geometry, neumann::NeumannData;
+                   ell::Real) -> VertexData
+
+Lower-level: assemble the vertex using pre-computed geometry and Neumann data.
+Useful when the same geometry is shared across CFTs, or for testing.
+"""
+function compute_vertex(cft::CompactBosonCFT, geom::Geometry, neumann::NeumannData;
+                        ell::Real)
+    _build_vertex(cft, geom, neumann, Float64(ell))
+end
+
+"""
+    compute_vertex(; R, ell, trunc, geom=nothing, neumann=nothing, series_order=20)
+
+Backward-compatible one-shot form that builds a fresh `CompactBosonCFT` per call.
+Prefer the layered form for ℓ-sweeps.
 """
 function compute_vertex(; R::Real, ell::Real, trunc::TruncationSpec,
                         geom=nothing, neumann=nothing, series_order::Int=20)
-    R = Float64(R); ell = Float64(ell)
-
-    if geom === nothing
-        geom = compute_geometry(ell, series_order)
+    cft = CompactBosonCFT(R=R, trunc=trunc)
+    if geom !== nothing
+        neum = neumann === nothing ? compute_neumann(geom, cft.m_max) : neumann
+        return compute_vertex(cft, geom, neum; ell=ell)
+    else
+        return compute_vertex(cft, ell; series_order=series_order)
     end
-    if neumann === nothing
-        # Need modes up to max descendant level
-        m_max = max(floor(Int, trunc.h_bond), floor(Int, trunc.h_phys)) + 2
-        neumann = compute_neumann(geom, m_max)
-    end
+end
 
-    basis_bond = build_fock_basis(R, trunc.h_bond)
-    basis_phys = build_fock_basis(R, trunc.h_phys)
+"""
+    vertex_sweep(cft::CompactBosonCFT, ells; series_order=20) -> Vector{VertexData}
 
-    # Build J-matrices for both bases
-    k_max = max(floor(Int, trunc.h_bond), floor(Int, trunc.h_phys)) + 2
-    J_bond = build_J_matrices(basis_bond, k_max)
-    J_phys = build_J_matrices(basis_phys, k_max)
+Convenience: compute vertices for all ℓ values, reusing the CFT data.
+"""
+function vertex_sweep(cft::CompactBosonCFT, ells; series_order::Int=20)
+    [compute_vertex(cft, ell; series_order=series_order) for ell in ells]
+end
 
-    # Compute the vertex values by sweeping total level
-    raw = _compute_vertex_raw(basis_bond, basis_phys, geom, neumann,
-                              J_bond, J_phys, R)
-
-    # Assemble into a TensorMap: V_phys ⊗ V_bond ⊗ V_bond → ℂ
-    # Codomain is trivial, domain is V_phys ⊗ V_bond ⊗ V_bond
-    V_b = basis_bond.V
-    V_p = basis_phys.V
-    vertex = _assemble_vertex(raw, basis_bond, basis_phys)
-
-    VertexData(vertex, geom, neumann, basis_bond, basis_phys, R, ell, raw)
+# Internal: actually run the recursion and assembly given all three layers.
+function _build_vertex(cft::CompactBosonCFT, geom::Geometry, neumann::NeumannData,
+                       ell::Float64)
+    raw = _compute_vertex_raw(cft.basis_bond, cft.basis_phys, geom, neumann,
+                              cft.J_bond, cft.J_phys, cft.R)
+    vertex = _assemble_vertex(raw, cft.basis_bond, cft.basis_phys)
+    VertexData(cft, vertex, geom, neumann, ell, raw)
 end
 
 """
