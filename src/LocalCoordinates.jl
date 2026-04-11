@@ -35,12 +35,15 @@ function compute_geometry(ℓ::Real, order::Int)
 end
 
 function _compute_arm(sc::SCParams, label::Symbol, order::Int)
+    # σ_i is determined by residue of f' at x_i: w_i σ_i / π = Res_{z=x_i} f'.
+    # At z=±1: Res = +1/π, so σ_L = σ_R = +1 (both arms have same log coefficient).
+    # At z=0:  Res = -iℓ/π, so σ_T = -i.
     if label == :R
         x = 1.0; w = 1.0; σ = 1.0 + 0.0im
     elseif label == :L
-        x = -1.0; w = 1.0; σ = -1.0 + 0.0im
+        x = -1.0; w = 1.0; σ = 1.0 + 0.0im
     elseif label == :T
-        x = 0.0; w = sc.ell; σ = 0.0 + 1.0im
+        x = 0.0; w = sc.ell; σ = 0.0 - 1.0im
     else
         error("Unknown arm label: $label")
     end
