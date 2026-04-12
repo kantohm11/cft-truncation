@@ -1,2 +1,6 @@
 Manifest.toml
 .claude/
+experiments/results/*
+!experiments/results/.gitkeep
+*.ipynb
+.ipynb_checkpoints/
