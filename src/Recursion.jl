@@ -1,14 +1,9 @@
 """
 Build the T-vertex tensor via Ward identity recursion.
 
-The primary entry point is the layered form
-    compute_vertex(cft::CompactBosonCFT, ell; series_order=20)
-which reuses the ℓ-independent CFT data (basis, J matrices, BPZ form)
-and only does the per-ℓ work (geometry + Neumann + Ward recursion).
-
-A backward-compatible kwarg form
-    compute_vertex(; R, ell, trunc, ...)
-builds the CFT data on the fly and is preserved so existing tests don't churn.
+Primary entry point: `compute_vertex(cft::CompactBosonCFT, ell; series_order=20)`.
+Build the CFT data once with `CompactBosonCFT(; R, trunc)`, then call
+`compute_vertex(cft, ell)` for each ℓ value.
 """
 
 struct VertexData

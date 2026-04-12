@@ -2,8 +2,6 @@ module CFTTruncation
 
 using TensorKit
 using LinearAlgebra
-using SparseArrays
-using Random
 
 include("TruncLaurent.jl")
 include("SCMap.jl")
