@@ -346,3 +346,159 @@ function charge_block(vd::VertexData, n_L::Int, n_R::Int, n_T::Int)
     end
     block
 end
+
+"""
+    modified_vertex_raw(vd::VertexData; c::Float64=1.0) -> Dict
+
+Compute the modified vertex Ṽ = e^{(H_L+H_R)ℓ/2} · V, where
+H = π/w (L₀ - c/24) is the open-string Hamiltonian on a strip of width w=1.
+
+Each raw entry is multiplied by
+  exp(π ℓ/2 (h_L + N_L - c/24)) · exp(π ℓ/2 (h_R + N_R - c/24))
+where h_i + N_i is the conformal dimension of the state on arm i.
+Only the bond (L, R) arms get the factor; the physical (T) arm does not.
+"""
+function modified_vertex_raw(vd::VertexData; c::Float64=1.0)
+    R = vd.R
+    ℓ = vd.ell
+    basis_bond = vd.basis_bond
+
+    modified = Dict{NTuple{6, Int}, Float64}()
+    for (key, val) in vd.raw
+        n_T, n_L, n_R, αT, αL, αR = key
+        h_L = (n_L / R)^2 / 2
+        N_L = basis_bond.levels[n_L][αL]
+        h_R = (n_R / R)^2 / 2
+        N_R = basis_bond.levels[n_R][αR]
+        factor = exp(π * ℓ / 2 * (h_L + N_L - c / 24)) *
+                 exp(π * ℓ / 2 * (h_R + N_R - c / 24))
+        modified[key] = val * factor
+    end
+    modified
+end
+
+"""
+    conformal_dim(basis::FockBasis, n::Int, α::Int) -> Float64
+
+Total conformal dimension h_n + N of state α in sector n.
+"""
+function conformal_dim(basis::FockBasis, n::Int, α::Int)
+    (n / basis.R)^2 / 2 + basis.levels[n][α]
+end
+
+"""
+    convergence_ratio(raw::Dict, vd::VertexData; h_cut=nothing)
+
+Compute ‖Π_{h≤h_cut} Ṽ‖ / ‖Ṽ‖ where Π projects each of the three
+tensor factors to the subspace with conformal dimension ≤ h_cut.
+Default h_cut = min(h_bond, h_phys) - 1 (i.e., drop the top shell).
+
+Returns (ratio, full_norm, projected_norm).
+"""
+function convergence_ratio(raw::Dict{NTuple{6, Int}, Float64}, vd::VertexData;
+                           h_cut::Union{Float64, Nothing}=nothing)
+    if h_cut === nothing
+        h_cut = min(vd.cft.trunc.h_bond, vd.cft.trunc.h_phys) - 1.0
+    end
+
+    full_sq = 0.0
+    proj_sq = 0.0
+    for (key, val) in raw
+        n_T, n_L, n_R, αT, αL, αR = key
+        full_sq += val^2
+        # Check all three factors
+        hd_L = conformal_dim(vd.basis_bond, n_L, αL)
+        hd_R = conformal_dim(vd.basis_bond, n_R, αR)
+        hd_T = conformal_dim(vd.basis_phys, n_T, αT)
+        if hd_L ≤ h_cut + 1e-10 && hd_R ≤ h_cut + 1e-10 && hd_T ≤ h_cut + 1e-10
+            proj_sq += val^2
+        end
+    end
+    full_norm = sqrt(full_sq)
+    proj_norm = sqrt(proj_sq)
+    ratio = full_norm > 0 ? proj_norm / full_norm : 1.0
+    (ratio=ratio, full_norm=full_norm, projected_norm=proj_norm)
+end
+
+"""
+    contract_T(raw::Dict, vd::VertexData, n_T::Int, αT::Int) -> Dict
+
+Contract the raw vertex with a specific state (n_T, αT) on the T arm.
+Returns a dict keyed by (n_L, n_R, αL, αR) → value.
+"""
+function contract_T(raw::Dict{NTuple{6, Int}, Float64}, vd::VertexData,
+                    n_T::Int, αT::Int)
+    result = Dict{NTuple{4, Int}, Float64}()
+    for (key, val) in raw
+        kn_T, n_L, n_R, kαT, αL, αR = key
+        kn_T == n_T && kαT == αT || continue
+        result[(n_L, n_R, αL, αR)] = val
+    end
+    result
+end
+
+"""
+    contract_TL(raw::Dict, vd::VertexData, n_T, αT, n_L, αL) -> Dict
+
+Contract with specific states on T and L arms.
+Returns a dict keyed by (n_R, αR) → value.
+"""
+function contract_TL(raw::Dict{NTuple{6, Int}, Float64}, vd::VertexData,
+                     n_T::Int, αT::Int, n_L::Int, αL::Int)
+    result = Dict{NTuple{2, Int}, Float64}()
+    for (key, val) in raw
+        kn_T, kn_L, n_R, kαT, kαL, αR = key
+        kn_T == n_T && kαT == αT && kn_L == n_L && kαL == αL || continue
+        result[(n_R, αR)] = val
+    end
+    result
+end
+
+"""
+    convergence_ratio_2leg(contracted::Dict{NTuple{4,Int},Float64},
+                           basis_bond::FockBasis; h_cut) -> NamedTuple
+
+Convergence ratio for a 2-leg object (after contracting T arm).
+Projects each bond factor to h ≤ h_cut.
+"""
+function convergence_ratio_2leg(contracted::Dict{NTuple{4, Int}, Float64},
+                                basis_bond::FockBasis; h_cut::Float64)
+    full_sq = 0.0
+    proj_sq = 0.0
+    for ((n_L, n_R, αL, αR), val) in contracted
+        full_sq += val^2
+        hd_L = conformal_dim(basis_bond, n_L, αL)
+        hd_R = conformal_dim(basis_bond, n_R, αR)
+        if hd_L ≤ h_cut + 1e-10 && hd_R ≤ h_cut + 1e-10
+            proj_sq += val^2
+        end
+    end
+    full_norm = sqrt(full_sq)
+    proj_norm = sqrt(proj_sq)
+    ratio = full_norm > 0 ? proj_norm / full_norm : 1.0
+    (ratio=ratio, full_norm=full_norm, projected_norm=proj_norm)
+end
+
+"""
+    convergence_ratio_1leg(contracted::Dict{NTuple{2,Int},Float64},
+                           basis_bond::FockBasis; h_cut) -> NamedTuple
+
+Convergence ratio for a 1-leg object (after contracting T and L arms).
+Projects the remaining bond factor to h ≤ h_cut.
+"""
+function convergence_ratio_1leg(contracted::Dict{NTuple{2, Int}, Float64},
+                                basis_bond::FockBasis; h_cut::Float64)
+    full_sq = 0.0
+    proj_sq = 0.0
+    for ((n_R, αR), val) in contracted
+        full_sq += val^2
+        hd_R = conformal_dim(basis_bond, n_R, αR)
+        if hd_R ≤ h_cut + 1e-10
+            proj_sq += val^2
+        end
+    end
+    full_norm = sqrt(full_sq)
+    proj_norm = sqrt(proj_sq)
+    ratio = full_norm > 0 ? proj_norm / full_norm : 1.0
+    (ratio=ratio, full_norm=full_norm, projected_norm=proj_norm)
+end

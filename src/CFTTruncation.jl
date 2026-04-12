@@ -21,5 +21,7 @@ include("Recursion.jl")
 # remain reachable via the qualified `CFTTruncation.X` form.
 export TruncationSpec, CompactBosonCFT
 export compute_vertex, vertex_sweep, charge_block, VertexData
+export modified_vertex_raw, convergence_ratio, conformal_dim
+export contract_T, contract_TL, convergence_ratio_2leg, convergence_ratio_1leg
 
 end
