@@ -24,7 +24,7 @@ export TruncationSpec, CompactBosonCFT
 export compute_vertex, vertex_sweep, charge_block, VertexData
 export conformal_dim
 export modified_vertex, modified_vertex_cache, build_propagator_factor
-export project_to_hcut, build_selector
+export project_to_hcut
 export projected_norm_after_contract_T, projected_norm_after_contract_TL
 export full_norm_after_contract_T, full_norm_after_contract_TL
 export weight_shells, random_unit_vec

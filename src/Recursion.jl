@@ -563,32 +563,6 @@ function full_norm_after_contract_TL(Vm::TensorMap, vec_T::Vector, vec_L::Vector
 end
 
 """
-    build_selector(basis::FockBasis, n::Int, alpha::Int) -> TensorMap
-
-Build a charge selector: a TensorMap `V_{-n} ← V'` that picks out the
-alpha-th basis state at charge n.
-
-Used for charged contractions: `selector * permute(vertex, ((1,),(2,3)))`
-gives a charged TensorMap representing the vertex with one leg fixed.
-
-The codomain V_{-n} is a 1D space at charge -n (the dual-charge convention
-from the permute-induced dualization). The domain is V' (the dual space).
-"""
-function build_selector(basis::FockBasis, n::Int, alpha::Int)
-    V_neg_n = Vect[U1Irrep](U1Irrep(-n) => 1)
-    sel = zeros(Float64, V_neg_n, basis.V')
-    for (f1, f2) in fusiontrees(sel)
-        fn = Int(f2.uncoupled[1].charge)
-        fn == -n || continue
-        blk = sel[f1, f2]
-        alpha <= size(blk, 2) || continue
-        blk[1, alpha] = 1.0
-        sel[f1, f2] = blk
-    end
-    sel
-end
-
-"""
     weight_shells(basis::FockBasis) -> Vector{@NamedTuple{h::Float64, states::Vector{Tuple{Int,Int}}}}
 
 Enumerate all distinct conformal weights in the basis with their (n, α) pairs.
