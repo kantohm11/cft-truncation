@@ -19,20 +19,6 @@ struct VertexData
     ell::Float64
 end
 
-# Backward-compat field forwarding so existing tests that read
-# vd.basis_bond / vd.basis_phys / vd.R continue to work.
-function Base.getproperty(vd::VertexData, name::Symbol)
-    if name === :basis_bond
-        return getfield(vd, :cft).basis_bond
-    elseif name === :basis_phys
-        return getfield(vd, :cft).basis_phys
-    elseif name === :R
-        return getfield(vd, :cft).R
-    else
-        return getfield(vd, name)
-    end
-end
-
 """
     compute_vertex(cft::CompactBosonCFT, ell::Real; series_order=20) -> VertexData
 
@@ -56,23 +42,6 @@ Useful when the same geometry is shared across CFTs, or for testing.
 function compute_vertex(cft::CompactBosonCFT, geom::Geometry, neumann::NeumannData;
                         ell::Real)
     _build_vertex(cft, geom, neumann, Float64(ell))
-end
-
-"""
-    compute_vertex(; R, ell, trunc, geom=nothing, neumann=nothing, series_order=20)
-
-Backward-compatible one-shot form that builds a fresh `CompactBosonCFT` per call.
-Prefer the layered form for ℓ-sweeps.
-"""
-function compute_vertex(; R::Real, ell::Real, trunc::TruncationSpec,
-                        geom=nothing, neumann=nothing, series_order::Int=20)
-    cft = CompactBosonCFT(R=R, trunc=trunc)
-    if geom !== nothing
-        neum = neumann === nothing ? compute_neumann(geom, cft.m_max) : neumann
-        return compute_vertex(cft, geom, neum; ell=ell)
-    else
-        return compute_vertex(cft, ell; series_order=series_order)
-    end
 end
 
 """
@@ -562,29 +531,3 @@ function full_norm_after_contract_TL(Vm::TensorMap, vec_T::Vector, vec_L::Vector
     sqrt(sum(v^2 for (_, v) in contracted; init=0.0))
 end
 
-"""
-    weight_shells(basis::FockBasis) -> Vector{@NamedTuple{h::Float64, states::Vector{Tuple{Int,Int}}}}
-
-Enumerate all distinct conformal weights in the basis with their (n, α) pairs.
-"""
-function weight_shells(basis::FockBasis)
-    h_map = Dict{Float64, Vector{Tuple{Int,Int}}}()
-    for n in keys(basis.states), a in eachindex(basis.states[n])
-        h = round(conformal_dim(basis, n, a); digits=6)
-        push!(get!(h_map, h, []), (n, a))
-    end
-    [(h=h, states=states) for (h, states) in sort(collect(h_map); by=first)]
-end
-
-"""
-    random_unit_vec(states; rng) -> Vector{Tuple{Tuple{Int,Int}, Float64}}
-
-Build a random unit vector over the given (n, α) states.
-Returns a list of ((n, α), coefficient) pairs.
-"""
-function random_unit_vec(states::Vector{Tuple{Int,Int}}; rng=Random.GLOBAL_RNG)
-    coeffs = randn(rng, length(states))
-    nrm = norm(coeffs)
-    nrm > 0 && (coeffs ./= nrm)
-    collect(zip(states, coeffs))
-end
