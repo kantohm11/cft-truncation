@@ -4,323 +4,329 @@
 using Markdown
 using InteractiveUtils
 
-# ╔═╡ a0000001-0001-0000-0000-000000000001
+# ╔═╡ a0000002-0001-0000-0000-000000000001
 begin
     import Pkg
     Pkg.activate(joinpath(@__DIR__, "..", ".."))
 end
 
-# ╔═╡ a0000001-0002-0000-0000-000000000001
+# ╔═╡ a0000002-0002-0000-0000-000000000001
 using CFTTruncation
 
-# ╔═╡ a0000001-0003-0000-0000-000000000001
-using TensorKit: dim, domain, codomain
-
-# ╔═╡ a0000001-0004-0000-0000-000000000001
+# ╔═╡ a0000002-0003-0000-0000-000000000001
 using LinearAlgebra: norm
 
-# ╔═╡ a0000001-0005-0000-0000-000000000001
+# ╔═╡ a0000002-0004-0000-0000-000000000001
 using Printf
 
-# ╔═╡ a0000001-0006-0000-0000-000000000001
+# ╔═╡ a0000002-0005-0000-0000-000000000001
 using Random
 
-# ╔═╡ a0000001-0010-0000-0000-000000000001
+# ╔═╡ a0000002-0010-0000-0000-000000000001
 md"""
 # 02 — Truncation Convergence of the Modified Vertex
 
-Test whether the level truncation at $h_{\max}$ makes sense for the
-**modified vertex** $\widetilde{V}_\ell = e^{(H_L + H_R)\ell/2} \cdot V_\ell$.
+Diagnostic: for the modified vertex $\widetilde{V} = e^{(H_L+H_R)\ell/2} V_\ell$
+computed at $h_{\max} = 6$, measure
 
-The diagnostic: the normalized overlap
-$$r = \frac{\|\Pi_{h \le h_{\max}-1}\, \widetilde{V}\|}{\|\widetilde{V}\|}$$
-measures how much of the modified vertex lives **below** the top shell.
-Close to 1 = converged (top-level states contribute little).
+$$r(h_{\text{trunc}}) = \frac{\|\Pi_{h \le h_{\text{trunc}}-1}\, \widetilde{V}\|}{\|\Pi_{h \le h_{\text{trunc}}}\, \widetilde{V}\|}$$
+
+where $\Pi_{h \le H}$ projects **each tensor factor** to the subspace with
+conformal dimension $\le H$.  Close to 1 means the $h_{\text{trunc}}$-shell
+adds little — the truncation at $h_{\text{trunc}}$ is nearly converged.
+
+**Key efficiency**: the vertex is computed once at $h_{\max} = 6$ per $\ell$.
+Different $h_{\text{trunc}}$ values (2, 3, 4, 5, 6) are just different filters
+on the same raw data.
+
+### Naming convention
+- **$h_\psi$**: conformal weight of the fixed/inserted state (the "probe").
+- **$h_{\text{trunc}}$**: the truncation level being tested.
 
 Three experiments:
-1. **Full 3-leg** — $\widetilde{V}$ as a vector in $V'_{\text{phys}} \otimes V'^{2}_{\text{bond}}$.
-2. **Fix random $\psi_T$ at weight $h$** — contract with a random unit vector in the weight-$h$ subspace of $V_{\text{phys}}$; result in $V'^{2}_{\text{bond}}$.
-3. **Fix random $\psi_T$ and $\psi_L$** — result in $V'_{\text{bond}}$.
+1. **Full 3-leg**: no contraction, the entire $\widetilde{V}$.
+2. **Fix $\psi_T$ at weight $h_\psi$**: contract T arm with a random unit vector in the weight-$h_\psi$ shell.
+3. **Fix $\psi_T$ and $\psi_L$**: contract both T and L arms.
 
-Sweep: $h_{\max} \in \{2,3,4,5,6\}$, $\ell$ dense for $\ell \le 0.5$ (step 0.05) and coarser for $\ell > 0.5$ (step 0.1).
-Fixed states: random unit vectors in each available conformal-weight shell.
+For each $h_\psi$, one table with rows = $\ell$, columns = $h_{\text{trunc}} \in \{2,3,4,5,6\}$.
 """
 
-# ╔═╡ a0000001-0011-0000-0000-000000000001
+# ╔═╡ a0000002-0011-0000-0000-000000000001
 begin
     R = 1.0
-    c_cft = 1.0   # central charge
-    h_maxs = [2.0, 3.0, 4.0, 5.0, 6.0]
+    c_cft = 1.0
+    H_MAX = 6.0
+    h_truncs = [2.0, 3.0, 4.0, 5.0, 6.0]
     ells = vcat(collect(0.05:0.05:0.5), collect(0.6:0.1:1.5))
     Random.seed!(42)
 end
 
-# ╔═╡ a0000001-0012-0000-0000-000000000001
-md"""
-### Helper: enumerate conformal-weight shells and build random vectors
-"""
+# ╔═╡ a0000002-0012-0000-0000-000000000001
+md"### Build CFT and precompute vertices at $h_{\max}=6$"
 
-# ╔═╡ a0000001-0013-0000-0000-000000000001
-"""
-Find all distinct conformal dimensions present in `basis`, and for each,
-return a list of (n, α) pairs and a random unit-vector of coefficients.
-"""
-function random_weight_vectors(basis, rng=Random.GLOBAL_RNG)
-    # Collect all (h, [(n,α)...]) groups
-    h_to_states = Dict{Float64, Vector{Tuple{Int,Int}}}()
-    for n in keys(basis.states)
-        for α in eachindex(basis.states[n])
-            h = conformal_dim(basis, n, α)
-            hr = round(h; digits=6)  # avoid float noise in keys
-            push!(get!(h_to_states, hr, []), (n, α))
-        end
+# ╔═╡ a0000002-0013-0000-0000-000000000001
+cft6 = CompactBosonCFT(R=R, trunc=TruncationSpec(H_MAX))
+
+# ╔═╡ a0000002-0014-0000-0000-000000000001
+# Precompute modified vertex for each ℓ (the expensive part — once per ℓ)
+mod_raws = let d = Dict{Float64, Dict{NTuple{6,Int}, Float64}}()
+    for ℓ in ells
+        vd = compute_vertex(cft6, ℓ)
+        d[ℓ] = modified_vertex_raw(vd; c=c_cft)
     end
-    # For each h, random unit vector
-    result = Dict{Float64, Tuple{Vector{Tuple{Int,Int}}, Vector{Float64}}}()
-    for (h, states) in h_to_states
-        coeffs = randn(rng, length(states))
-        nrm = norm(coeffs)
-        if nrm > 0
-            coeffs ./= nrm
-        end
-        result[h] = (states, coeffs)
+    d
+end
+
+# ╔═╡ a0000002-0015-0000-0000-000000000001
+# A reference VertexData for basis access (all share the same basis at h_max=6)
+vd_ref = compute_vertex(cft6, ells[1])
+
+# ╔═╡ a0000002-0016-0000-0000-000000000001
+md"### Helpers"
+
+# ╔═╡ a0000002-0017-0000-0000-000000000001
+"""
+Compute ‖Π_{h≤h_cut} v‖ for a 3-leg raw dict.
+"""
+function projected_norm_3leg(raw, basis_bond, basis_phys, h_cut)
+    sq = 0.0
+    for ((n_T, n_L, n_R, αT, αL, αR), val) in raw
+        conformal_dim(basis_bond, n_L, αL) ≤ h_cut + 1e-10 &&
+        conformal_dim(basis_bond, n_R, αR) ≤ h_cut + 1e-10 &&
+        conformal_dim(basis_phys, n_T, αT) ≤ h_cut + 1e-10 || continue
+        sq += val^2
+    end
+    sqrt(sq)
+end
+
+# ╔═╡ a0000002-0018-0000-0000-000000000001
+function projected_norm_2leg(contracted, basis_bond, h_cut)
+    sq = 0.0
+    for ((n_L, n_R, αL, αR), val) in contracted
+        conformal_dim(basis_bond, n_L, αL) ≤ h_cut + 1e-10 &&
+        conformal_dim(basis_bond, n_R, αR) ≤ h_cut + 1e-10 || continue
+        sq += val^2
+    end
+    sqrt(sq)
+end
+
+# ╔═╡ a0000002-0019-0000-0000-000000000001
+function projected_norm_1leg(contracted, basis_bond, h_cut)
+    sq = 0.0
+    for ((n_R, αR), val) in contracted
+        conformal_dim(basis_bond, n_R, αR) ≤ h_cut + 1e-10 || continue
+        sq += val^2
+    end
+    sqrt(sq)
+end
+
+# ╔═╡ a0000002-001a-0000-0000-000000000001
+"""
+For each h_trunc, ratio = ‖Π_{h_trunc-1}‖ / ‖Π_{h_trunc}‖.
+`norm_fn(h_cut)` should return the projected norm at that cutoff.
+"""
+function convergence_ratios(norm_fn, h_truncs)
+    [let n_lo = norm_fn(ht - 1.0); n_hi = norm_fn(ht)
+         n_hi > 0 ? n_lo / n_hi : NaN
+     end
+     for ht in h_truncs]
+end
+
+# ╔═╡ a0000002-001b-0000-0000-000000000001
+"""
+Enumerate all distinct conformal weights in `basis`.
+For each, return (weight, states, random_unit_coeffs).
+"""
+function random_weight_shells(basis; rng=Random.GLOBAL_RNG)
+    h_map = Dict{Float64, Vector{Tuple{Int,Int}}}()
+    for n in keys(basis.states), α in eachindex(basis.states[n])
+        h = round(conformal_dim(basis, n, α); digits=6)
+        push!(get!(h_map, h, []), (n, α))
+    end
+    result = []
+    for h in sort(collect(keys(h_map)))
+        states = h_map[h]
+        c = randn(rng, length(states))
+        nrm = norm(c); nrm > 0 && (c ./= nrm)
+        push!(result, (h_psi=h, states=states, coeffs=c))
     end
     result
 end
 
-# ╔═╡ a0000001-0014-0000-0000-000000000001
-"""
-Contract the raw vertex with a linear combination on the T arm.
-`vec_T` is a list of ((n_T, αT), coeff) pairs.
-Returns a Dict keyed by (n_L, n_R, αL, αR).
-"""
-function contract_T_random(raw, vec_T)
+# ╔═╡ a0000002-001c-0000-0000-000000000001
+function contract_T_vec(raw, vec_T)
     result = Dict{NTuple{4,Int}, Float64}()
-    for ((n_T, αT), coeff) in vec_T
+    for (st, coeff) in zip(vec_T.states, vec_T.coeffs)
         coeff == 0.0 && continue
+        n_T, αT = st
         for (key, val) in raw
-            kn_T, n_L, n_R, kαT, αL, αR = key
-            (kn_T == n_T && kαT == αT) || continue
-            rkey = (n_L, n_R, αL, αR)
-            result[rkey] = get(result, rkey, 0.0) + coeff * val
+            (key[1] == n_T && key[4] == αT) || continue
+            rk = (key[2], key[3], key[5], key[6])
+            result[rk] = get(result, rk, 0.0) + coeff * val
         end
     end
     result
 end
 
-# ╔═╡ a0000001-0015-0000-0000-000000000001
-"""
-Contract with random vectors on BOTH T and L arms.
-Returns a Dict keyed by (n_R, αR).
-"""
-function contract_TL_random(raw, vec_T, vec_L)
+# ╔═╡ a0000002-001d-0000-0000-000000000001
+function contract_TL_vec(raw, vec_T, vec_L)
     result = Dict{NTuple{2,Int}, Float64}()
-    for ((n_T, αT), cT) in vec_T
+    for (sT, cT) in zip(vec_T.states, vec_T.coeffs)
         cT == 0.0 && continue
-        for ((n_L, αL), cL) in vec_L
+        for (sL, cL) in zip(vec_L.states, vec_L.coeffs)
             cL == 0.0 && continue
+            n_T, αT = sT; n_L, αL = sL
             for (key, val) in raw
-                kn_T, kn_L, n_R, kαT, kαL, αR = key
-                (kn_T == n_T && kαT == αT && kn_L == n_L && kαL == αL) || continue
-                rkey = (n_R, αR)
-                result[rkey] = get(result, rkey, 0.0) + cT * cL * val
+                (key[1]==n_T && key[4]==αT && key[2]==n_L && key[5]==αL) || continue
+                rk = (key[3], key[6])
+                result[rk] = get(result, rk, 0.0) + cT * cL * val
             end
         end
     end
     result
 end
 
-# ╔═╡ a0000001-0020-0000-0000-000000000001
-md"""
-## Experiment 1: Full 3-leg convergence
-
-Ratio $r(\ell)$ for each $h_{\max}$.
-"""
-
-# ╔═╡ a0000001-0021-0000-0000-000000000001
-exp1_results = let results = Dict()
-    for h_max in h_maxs
-        cft = CompactBosonCFT(R=R, trunc=TruncationSpec(h_max))
-        h_cut = h_max - 1.0
-        ratios = Float64[]
-        for ℓ in ells
-            vd = compute_vertex(cft, ℓ)
-            mod_raw = modified_vertex_raw(vd; c=c_cft)
-            r = convergence_ratio(mod_raw, vd; h_cut=h_cut)
-            push!(ratios, r.ratio)
-        end
-        results[h_max] = ratios
-    end
-    results
-end
-
-# ╔═╡ a0000001-0023-0000-0000-000000000001
-let
-    header = "   ℓ    " * join([@sprintf("h=%d", Int(h)) for h in h_maxs], "    ")
+# ╔═╡ a0000002-001e-0000-0000-000000000001
+function format_table(title, ells, h_truncs, data_matrix)
+    header = title * "  " * join([@sprintf("h_tr=%d", Int(h)) for h in h_truncs], "  ")
     lines = [header, repeat("-", length(header))]
     for (i, ℓ) in enumerate(ells)
-        vals = [exp1_results[h][i] for h in h_maxs]
-        push!(lines, @sprintf(" %5.2f  ", ℓ) * join([@sprintf("%7.4f", v) for v in vals], "  "))
+        push!(lines, @sprintf("  %5.2f   ", ℓ) *
+              join([@sprintf("%6.3f", data_matrix[i, j]) for j in eachindex(h_truncs)], "  "))
     end
-    Text(join(lines, "\n"))
+    join(lines, "\n")
 end
 
-# ╔═╡ a0000001-0030-0000-0000-000000000001
-md"""
-## Experiment 2: Contract with random $\psi_T$ at weight $h$, 2-leg convergence
+# ╔═╡ a0000002-0020-0000-0000-000000000001
+md"## Experiment 1: Full 3-leg"
 
-For each available conformal weight $h$ in $V_{\text{phys}}$, build a random unit
-vector in that weight shell, contract with the modified vertex, and compute
-the 2-leg convergence ratio.
-
-Rows: $\ell$. Columns: conformal weight $h$ of the inserted state.
-One table per $h_{\max}$.
-"""
-
-# ╔═╡ a0000001-0031-0000-0000-000000000001
-exp2_results = let results = Dict()
-    for h_max in h_maxs
-        cft = CompactBosonCFT(R=R, trunc=TruncationSpec(h_max))
-        h_cut = h_max - 1.0
-        rng = Random.MersenneTwister(42)
-        wvecs = random_weight_vectors(cft.basis_phys, rng)
-        h_vals = sort(collect(keys(wvecs)))
-        for ℓ in ells
-            vd = compute_vertex(cft, ℓ)
-            mod_raw = modified_vertex_raw(vd; c=c_cft)
-            for h_fixed in h_vals
-                (states, coeffs) = wvecs[h_fixed]
-                vec_T = collect(zip(states, coeffs))
-                c2 = contract_T_random(mod_raw, vec_T)
-                r = convergence_ratio_2leg(c2, vd.basis_bond; h_cut=h_cut)
-                push!(get!(results, (h_max, h_fixed), Float64[]), r.ratio)
-            end
+# ╔═╡ a0000002-0021-0000-0000-000000000001
+exp1_table = let
+    bb = cft6.basis_bond; bp = cft6.basis_phys
+    data = zeros(length(ells), length(h_truncs))
+    for (i, ℓ) in enumerate(ells)
+        raw = mod_raws[ℓ]
+        rats = convergence_ratios(h_truncs) do hc
+            projected_norm_3leg(raw, bb, bp, hc)
         end
+        data[i, :] .= rats
     end
-    results
+    format_table("  ℓ    ", ells, h_truncs, data)
 end
 
-# ╔═╡ a0000001-0032-0000-0000-000000000001
-md"""
-### Exp 2 tables
+# ╔═╡ a0000002-0022-0000-0000-000000000001
+Text(exp1_table)
 
-One table per $h_{\max}$. Columns are the conformal weight $h$ of the random $\psi_T$.
+# ╔═╡ a0000002-0030-0000-0000-000000000001
+md"""
+## Experiment 2: Fix $\psi_T$ at weight $h_\psi$, 2-leg convergence
+
+One table per $h_\psi$. Rows = $\ell$, columns = $h_{\text{trunc}}$.
 """
 
-# ╔═╡ a0000001-0033-0000-0000-000000000001
-let
-    tables = []
-    for h_max in h_maxs
-        # Find all h_fixed values for this h_max
-        h_vals = sort([h for (hm, h) in keys(exp2_results) if hm == h_max])
-        isempty(h_vals) && continue
-        header = @sprintf("h_max=%d  ℓ    ", Int(h_max)) * join([@sprintf("h=%.1f", h) for h in h_vals], "  ")
-        lines = [header, repeat("-", length(header))]
+# ╔═╡ a0000002-0031-0000-0000-000000000001
+shells_phys = random_weight_shells(cft6.basis_phys; rng=Random.MersenneTwister(42))
+
+# ╔═╡ a0000002-0032-0000-0000-000000000001
+exp2_tables = let
+    bb = cft6.basis_bond
+    tables = String[]
+    for shell in shells_phys
+        data = zeros(length(ells), length(h_truncs))
         for (i, ℓ) in enumerate(ells)
-            vals = [exp2_results[(h_max, h)][i] for h in h_vals]
-            push!(lines, @sprintf("         %5.2f  ", ℓ) * join([@sprintf("%6.3f", v) for v in vals], "  "))
-        end
-        push!(tables, join(lines, "\n"))
-    end
-    Text(join(tables, "\n\n"))
-end
-
-# ╔═╡ a0000001-0040-0000-0000-000000000001
-md"""
-## Experiment 3: Contract with random $\psi_T$ and $\psi_L$, 1-leg convergence
-
-Fix random unit vectors on both T (weight $h_T$) and L (weight $h_L$) arms.
-The remaining vector lives in $V'_{\text{bond}}$.
-
-For brevity, use $h_T = h_L$ (same weight on both inserted arms).
-"""
-
-# ╔═╡ a0000001-0041-0000-0000-000000000001
-exp3_results = let results = Dict()
-    for h_max in h_maxs
-        cft = CompactBosonCFT(R=R, trunc=TruncationSpec(h_max))
-        h_cut = h_max - 1.0
-        rng = Random.MersenneTwister(42)
-        wvecs_phys = random_weight_vectors(cft.basis_phys, rng)
-        wvecs_bond = random_weight_vectors(cft.basis_bond, Random.MersenneTwister(123))
-        # Use h_T = h_L for simplicity; pick weights present in BOTH bases
-        h_vals_phys = Set(keys(wvecs_phys))
-        h_vals_bond = Set(keys(wvecs_bond))
-        h_vals = sort(collect(h_vals_phys ∩ h_vals_bond))
-        for ℓ in ells
-            vd = compute_vertex(cft, ℓ)
-            mod_raw = modified_vertex_raw(vd; c=c_cft)
-            for h_fixed in h_vals
-                (states_T, coeffs_T) = wvecs_phys[h_fixed]
-                (states_L, coeffs_L) = wvecs_bond[h_fixed]
-                vec_T = collect(zip(states_T, coeffs_T))
-                vec_L = collect(zip(states_L, coeffs_L))
-                c3 = contract_TL_random(mod_raw, vec_T, vec_L)
-                r = convergence_ratio_1leg(c3, vd.basis_bond; h_cut=h_cut)
-                push!(get!(results, (h_max, h_fixed), Float64[]), r.ratio)
+            c2 = contract_T_vec(mod_raws[ℓ], shell)
+            rats = convergence_ratios(h_truncs) do hc
+                projected_norm_2leg(c2, bb, hc)
             end
+            data[i, :] .= rats
         end
+        push!(tables, format_table(@sprintf("h_ψ=%4.1f  ℓ", shell.h_psi), ells, h_truncs, data))
     end
-    results
+    tables
 end
 
-# ╔═╡ a0000001-0042-0000-0000-000000000001
-md"""
-### Exp 3 tables
+# ╔═╡ a0000002-0033-0000-0000-000000000001
+Text(join(exp2_tables, "\n\n"))
 
-One table per $h_{\max}$. Columns are the shared weight $h_T = h_L$.
+# ╔═╡ a0000002-0040-0000-0000-000000000001
+md"""
+## Experiment 3: Fix $\psi_T$ and $\psi_L$, 1-leg convergence
+
+Use $h_{\psi_T} = h_{\psi_L}$ (same weight, independent random vectors).
+One table per shared $h_\psi$.
 """
 
-# ╔═╡ a0000001-0043-0000-0000-000000000001
-let
-    tables = []
-    for h_max in h_maxs
-        h_vals = sort([h for (hm, h) in keys(exp3_results) if hm == h_max])
-        isempty(h_vals) && continue
-        header = @sprintf("h_max=%d  ℓ    ", Int(h_max)) * join([@sprintf("h=%.1f", h) for h in h_vals], "  ")
-        lines = [header, repeat("-", length(header))]
+# ╔═╡ a0000002-0041-0000-0000-000000000001
+shells_bond = random_weight_shells(cft6.basis_bond; rng=Random.MersenneTwister(123))
+
+# ╔═╡ a0000002-0042-0000-0000-000000000001
+exp3_tables = let
+    bb = cft6.basis_bond
+    # Use weights present in both bases
+    h_phys_set = Set(s.h_psi for s in shells_phys)
+    h_bond_set = Set(s.h_psi for s in shells_bond)
+    h_common = sort(collect(h_phys_set ∩ h_bond_set))
+    shell_phys_map = Dict(s.h_psi => s for s in shells_phys)
+    shell_bond_map = Dict(s.h_psi => s for s in shells_bond)
+    tables = String[]
+    for h in h_common
+        sT = shell_phys_map[h]; sL = shell_bond_map[h]
+        data = zeros(length(ells), length(h_truncs))
         for (i, ℓ) in enumerate(ells)
-            vals = [exp3_results[(h_max, h)][i] for h in h_vals]
-            push!(lines, @sprintf("         %5.2f  ", ℓ) * join([@sprintf("%6.3f", v) for v in vals], "  "))
+            c3 = contract_TL_vec(mod_raws[ℓ], sT, sL)
+            rats = convergence_ratios(h_truncs) do hc
+                projected_norm_1leg(c3, bb, hc)
+            end
+            data[i, :] .= rats
         end
-        push!(tables, join(lines, "\n"))
+        push!(tables, format_table(@sprintf("h_ψ=%4.1f  ℓ", h), ells, h_truncs, data))
     end
-    Text(join(tables, "\n\n"))
+    tables
 end
 
-# ╔═╡ a0000001-0050-0000-0000-000000000001
+# ╔═╡ a0000002-0043-0000-0000-000000000001
+Text(join(exp3_tables, "\n\n"))
+
+# ╔═╡ a0000002-0050-0000-0000-000000000001
 md"""
 ## Summary
 
-- **Exp 1** (full vertex): ratio $r$ measures overall truncation convergence.
-- **Exp 2** (fix $\psi_T$): how convergence depends on the weight of the inserted state. Heavier states should be easier to truncate (less room for bond descendants).
-- **Exp 3** (fix $\psi_T, \psi_L$): same, with both T and L arms contracted.
-
-Convergence ratio → 1 as $h_{\max} \to \infty$ at fixed $\ell$. For fixed $h_{\max}$, expect better convergence (higher $r$) at small $\ell$ (thin strip, less propagation to compensate).
+- $r(h_{\text{trunc}}) = \|\Pi_{h_{\text{trunc}}-1}\widetilde{V}\| / \|\Pi_{h_{\text{trunc}}}\widetilde{V}\|$
+- Close to 1 ⟹ the $h_{\text{trunc}}$-shell adds little (truncation converged at that level).
+- Expect: $r \to 1$ as $h_{\text{trunc}}$ increases (for fixed $\ell$), and as $\ell \to 0$ (for fixed $h_{\text{trunc}}$).
+- Heavier $\psi$ (larger $h_\psi$) leaves less room for bond-arm descendants, so convergence should improve.
 """
 
 # ╔═╡ Cell order:
-# ╟─a0000001-0010-0000-0000-000000000001
-# ╠═a0000001-0001-0000-0000-000000000001
-# ╠═a0000001-0002-0000-0000-000000000001
-# ╠═a0000001-0003-0000-0000-000000000001
-# ╠═a0000001-0004-0000-0000-000000000001
-# ╠═a0000001-0005-0000-0000-000000000001
-# ╠═a0000001-0006-0000-0000-000000000001
-# ╠═a0000001-0011-0000-0000-000000000001
-# ╟─a0000001-0012-0000-0000-000000000001
-# ╠═a0000001-0013-0000-0000-000000000001
-# ╠═a0000001-0014-0000-0000-000000000001
-# ╠═a0000001-0015-0000-0000-000000000001
-# ╟─a0000001-0020-0000-0000-000000000001
-# ╠═a0000001-0021-0000-0000-000000000001
-# ╠═a0000001-0023-0000-0000-000000000001
-# ╟─a0000001-0030-0000-0000-000000000001
-# ╠═a0000001-0031-0000-0000-000000000001
-# ╟─a0000001-0032-0000-0000-000000000001
-# ╠═a0000001-0033-0000-0000-000000000001
-# ╟─a0000001-0040-0000-0000-000000000001
-# ╠═a0000001-0041-0000-0000-000000000001
-# ╟─a0000001-0042-0000-0000-000000000001
-# ╠═a0000001-0043-0000-0000-000000000001
-# ╟─a0000001-0050-0000-0000-000000000001
+# ╟─a0000002-0010-0000-0000-000000000001
+# ╠═a0000002-0001-0000-0000-000000000001
+# ╠═a0000002-0002-0000-0000-000000000001
+# ╠═a0000002-0003-0000-0000-000000000001
+# ╠═a0000002-0004-0000-0000-000000000001
+# ╠═a0000002-0005-0000-0000-000000000001
+# ╠═a0000002-0011-0000-0000-000000000001
+# ╟─a0000002-0012-0000-0000-000000000001
+# ╠═a0000002-0013-0000-0000-000000000001
+# ╠═a0000002-0014-0000-0000-000000000001
+# ╠═a0000002-0015-0000-0000-000000000001
+# ╟─a0000002-0016-0000-0000-000000000001
+# ╠═a0000002-0017-0000-0000-000000000001
+# ╠═a0000002-0018-0000-0000-000000000001
+# ╠═a0000002-0019-0000-0000-000000000001
+# ╠═a0000002-001a-0000-0000-000000000001
+# ╠═a0000002-001b-0000-0000-000000000001
+# ╠═a0000002-001c-0000-0000-000000000001
+# ╠═a0000002-001d-0000-0000-000000000001
+# ╠═a0000002-001e-0000-0000-000000000001
+# ╟─a0000002-0020-0000-0000-000000000001
+# ╠═a0000002-0021-0000-0000-000000000001
+# ╠═a0000002-0022-0000-0000-000000000001
+# ╟─a0000002-0030-0000-0000-000000000001
+# ╠═a0000002-0031-0000-0000-000000000001
+# ╠═a0000002-0032-0000-0000-000000000001
+# ╠═a0000002-0033-0000-0000-000000000001
+# ╟─a0000002-0040-0000-0000-000000000001
+# ╠═a0000002-0041-0000-0000-000000000001
+# ╠═a0000002-0042-0000-0000-000000000001
+# ╠═a0000002-0043-0000-0000-000000000001
+# ╟─a0000002-0050-0000-0000-000000000001
