@@ -502,3 +502,244 @@ function convergence_ratio_1leg(contracted::Dict{NTuple{2, Int}, Float64},
     ratio = full_norm > 0 ? proj_norm / full_norm : 1.0
     (ratio=ratio, full_norm=full_norm, projected_norm=proj_norm)
 end
+
+# ============================================================
+# TensorMap-native operations (preferred over raw-dict versions)
+# ============================================================
+
+"""
+    build_propagator_factor(basis::FockBasis, ell, c) -> TensorMap
+
+Diagonal endomorphism V -> V with eigenvalue exp(pi*ell/2*(h_n+N-c/24))
+on each basis state. This is e^{H*ell/2} where H = pi(L_0 - c/24) on
+a strip of unit width.
+"""
+function build_propagator_factor(basis::FockBasis, ell::Float64, c::Float64)
+    D = zeros(Float64, basis.V, basis.V)
+    for (f1, f2) in fusiontrees(D)
+        n = Int(f2.uncoupled[1].charge)
+        haskey(basis.levels, n) || continue
+        blk = D[f1, f2]
+        for a in axes(blk, 1)
+            blk[a, a] = exp(pi * ell / 2 * (conformal_dim(basis, n, a) - c / 24))
+        end
+        D[f1, f2] = blk
+    end
+    D
+end
+
+"""
+    modified_vertex(vd::VertexData; c=1.0) -> TensorMap
+
+Compute the modified vertex as a TensorMap:
+Vmod = e^{(H_L+H_R)*ell/2} * V.
+Rescales each entry by the propagator factor on the two bond (L, R) arms.
+The physical (T) arm is unmodified.
+"""
+function modified_vertex(vd::VertexData; c::Float64=1.0)
+    Vmod = copy(vd.vertex)
+    bb = vd.basis_bond
+    ell = vd.ell
+    for (f1, f2) in fusiontrees(Vmod)
+        n_L = Int(f2.uncoupled[2].charge)
+        n_R = Int(f2.uncoupled[3].charge)
+        (haskey(bb.levels, n_L) && haskey(bb.levels, n_R)) || continue
+        blk = Vmod[f1, f2]
+        for aT in axes(blk, 1), aL in axes(blk, 2), aR in axes(blk, 3)
+            hd_L = conformal_dim(bb, n_L, aL)
+            hd_R = conformal_dim(bb, n_R, aR)
+            factor = exp(pi * ell / 2 * (hd_L - c / 24)) *
+                     exp(pi * ell / 2 * (hd_R - c / 24))
+            blk[aT, aL, aR] *= factor
+        end
+        Vmod[f1, f2] = blk
+    end
+    Vmod
+end
+
+"""
+    modified_vertex_cache(cft, ells; c=1.0, series_order=20) -> Dict{Float64, TensorMap}
+
+Precompute and cache modified vertices for a sweep over ell values.
+"""
+function modified_vertex_cache(cft::CompactBosonCFT, ells;
+                               c::Float64=1.0, series_order::Int=20)
+    Dict(Float64(l) => modified_vertex(compute_vertex(cft, l; series_order); c=c)
+         for l in ells)
+end
+
+"""
+    project_to_hcut(tm::TensorMap, bases, h_cut) -> TensorMap
+
+Zero out entries where any tensor factor has conformal dimension > h_cut.
+`bases` is a tuple/vector of FockBasis, one per domain leg (in order).
+"""
+function project_to_hcut(tm::TensorMap, bases, h_cut::Float64)
+    result = copy(tm)
+    for (f1, f2) in fusiontrees(result)
+        charges = [Int(f2.uncoupled[i].charge) for i in 1:length(f2.uncoupled)]
+        blk = result[f1, f2]
+        for idx in CartesianIndices(blk)
+            keep = true
+            for (leg, a) in enumerate(Tuple(idx))
+                n = charges[leg]
+                if !haskey(bases[leg].levels, n) || conformal_dim(bases[leg], n, a) > h_cut + 1e-10
+                    keep = false; break
+                end
+            end
+            keep || (blk[idx] = 0.0)
+        end
+        result[f1, f2] = blk
+    end
+    result
+end
+
+"""
+    projected_norm_after_contract_T(Vm, basis_phys, basis_bond, vec_T, h_cut) -> Float64
+
+Compute the projected norm (at h_cut) of the modified vertex Vm after
+contracting the T (phys) leg with a linear combination of basis states.
+
+`vec_T` is a vector of ((n_T, αT), coefficient) pairs.
+
+Works directly on Vm's TensorMap blocks, avoiding intermediate TensorMap
+construction (which would fail for charged contractions due to TensorKit's
+charge-conservation constraint on the result space).
+"""
+function projected_norm_after_contract_T(Vm::TensorMap, basis_phys::FockBasis,
+                                          basis_bond::FockBasis,
+                                          vec_T::Vector, h_cut::Float64)
+    # Accumulate: result[(n_L,n_R,αL,αR)] = Σ_i c_i * Vm[αT_i, αL, αR]
+    contracted = Dict{NTuple{4,Int}, Float64}()
+    for ((n_T, αT), coeff) in vec_T
+        coeff == 0.0 && continue
+        for (f1, f2) in fusiontrees(Vm)
+            Int(f2.uncoupled[1].charge) == n_T || continue
+            n_L = Int(f2.uncoupled[2].charge)
+            n_R = Int(f2.uncoupled[3].charge)
+            blk = Vm[f1, f2]
+            for αL in axes(blk, 2), αR in axes(blk, 3)
+                key = (n_L, n_R, αL, αR)
+                contracted[key] = get(contracted, key, 0.0) + coeff * blk[αT, αL, αR]
+            end
+        end
+    end
+    # Compute projected norm
+    sq = 0.0
+    for ((n_L, n_R, αL, αR), val) in contracted
+        conformal_dim(basis_bond, n_L, αL) > h_cut + 1e-10 && continue
+        conformal_dim(basis_bond, n_R, αR) > h_cut + 1e-10 && continue
+        sq += val^2
+    end
+    sqrt(sq)
+end
+
+"""
+    projected_norm_after_contract_TL(Vm, basis_phys, basis_bond, vec_T, vec_L, h_cut) -> Float64
+
+Same as above but contracting both the T (phys) and L (first bond) legs.
+`vec_T` and `vec_L` are vectors of ((n, α), coefficient) pairs.
+"""
+function projected_norm_after_contract_TL(Vm::TensorMap, basis_phys::FockBasis,
+                                           basis_bond::FockBasis,
+                                           vec_T::Vector, vec_L::Vector, h_cut::Float64)
+    contracted = Dict{NTuple{2,Int}, Float64}()
+    for ((n_T, αT), cT) in vec_T
+        cT == 0.0 && continue
+        for ((n_L, αL), cL) in vec_L
+            cL == 0.0 && continue
+            for (f1, f2) in fusiontrees(Vm)
+                Int(f2.uncoupled[1].charge) == n_T || continue
+                Int(f2.uncoupled[2].charge) == n_L || continue
+                n_R = Int(f2.uncoupled[3].charge)
+                blk = Vm[f1, f2]
+                for αR in axes(blk, 3)
+                    key = (n_R, αR)
+                    contracted[key] = get(contracted, key, 0.0) + cT * cL * blk[αT, αL, αR]
+                end
+            end
+        end
+    end
+    sq = 0.0
+    for ((n_R, αR), val) in contracted
+        conformal_dim(basis_bond, n_R, αR) > h_cut + 1e-10 && continue
+        sq += val^2
+    end
+    sqrt(sq)
+end
+
+"""
+    full_norm_after_contract_T(Vm, vec_T) -> Float64
+
+Full (unprojected) norm after contracting T leg.
+"""
+function full_norm_after_contract_T(Vm::TensorMap, vec_T::Vector)
+    contracted = Dict{NTuple{4,Int}, Float64}()
+    for ((n_T, αT), coeff) in vec_T
+        coeff == 0.0 && continue
+        for (f1, f2) in fusiontrees(Vm)
+            Int(f2.uncoupled[1].charge) == n_T || continue
+            n_L = Int(f2.uncoupled[2].charge)
+            n_R = Int(f2.uncoupled[3].charge)
+            blk = Vm[f1, f2]
+            for αL in axes(blk, 2), αR in axes(blk, 3)
+                key = (n_L, n_R, αL, αR)
+                contracted[key] = get(contracted, key, 0.0) + coeff * blk[αT, αL, αR]
+            end
+        end
+    end
+    sqrt(sum(v^2 for (_, v) in contracted; init=0.0))
+end
+
+"""
+    full_norm_after_contract_TL(Vm, vec_T, vec_L) -> Float64
+
+Full (unprojected) norm after contracting both T and L legs.
+"""
+function full_norm_after_contract_TL(Vm::TensorMap, vec_T::Vector, vec_L::Vector)
+    contracted = Dict{NTuple{2,Int}, Float64}()
+    for ((n_T, αT), cT) in vec_T
+        cT == 0.0 && continue
+        for ((n_L, αL), cL) in vec_L
+            cL == 0.0 && continue
+            for (f1, f2) in fusiontrees(Vm)
+                Int(f2.uncoupled[1].charge) == n_T || continue
+                Int(f2.uncoupled[2].charge) == n_L || continue
+                n_R = Int(f2.uncoupled[3].charge)
+                blk = Vm[f1, f2]
+                for αR in axes(blk, 3)
+                    key = (n_R, αR)
+                    contracted[key] = get(contracted, key, 0.0) + cT * cL * blk[αT, αL, αR]
+                end
+            end
+        end
+    end
+    sqrt(sum(v^2 for (_, v) in contracted; init=0.0))
+end
+
+"""
+    weight_shells(basis::FockBasis) -> Vector{@NamedTuple{h::Float64, states::Vector{Tuple{Int,Int}}}}
+
+Enumerate all distinct conformal weights in the basis with their (n, α) pairs.
+"""
+function weight_shells(basis::FockBasis)
+    h_map = Dict{Float64, Vector{Tuple{Int,Int}}}()
+    for n in keys(basis.states), a in eachindex(basis.states[n])
+        h = round(conformal_dim(basis, n, a); digits=6)
+        push!(get!(h_map, h, []), (n, a))
+    end
+    [(h=h, states=states) for (h, states) in sort(collect(h_map); by=first)]
+end
+
+"""
+    random_unit_vec(states; rng) -> Vector{Tuple{Tuple{Int,Int}, Float64}}
+
+Build a random unit vector over the given (n, α) states.
+Returns a list of ((n, α), coefficient) pairs.
+"""
+function random_unit_vec(states::Vector{Tuple{Int,Int}}; rng=Random.GLOBAL_RNG)
+    coeffs = randn(rng, length(states))
+    nrm = norm(coeffs)
+    nrm > 0 && (coeffs ./= nrm)
+    collect(zip(states, coeffs))
+end
