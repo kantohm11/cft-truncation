@@ -16,7 +16,7 @@ end
 using CFTTruncation
 
 # ╔═╡ 7c4b2a00-0004-0000-0000-000000000004
-using TensorKit: dim, domain
+using TensorKit: dim, domain, codomain
 
 # ╔═╡ 7c4b2a00-0005-0000-0000-000000000005
 using LinearAlgebra: norm
