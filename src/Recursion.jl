@@ -17,8 +17,6 @@ struct VertexData
     geom::Geometry
     neumann::NeumannData
     ell::Float64
-    # Raw vertex values, keyed by (n_T, n_L, n_R, α_T, α_L, α_R)
-    raw::Dict{NTuple{6, Int}, Float64}
 end
 
 # Backward-compat field forwarding so existing tests that read
@@ -92,7 +90,7 @@ function _build_vertex(cft::CompactBosonCFT, geom::Geometry, neumann::NeumannDat
     raw = _compute_vertex_raw(cft.basis_bond, cft.basis_phys, geom, neumann,
                               cft.J_bond, cft.J_phys, cft.R)
     vertex = _assemble_vertex(raw, cft.basis_bond, cft.basis_phys)
-    VertexData(cft, vertex, geom, neumann, ell, raw)
+    VertexData(cft, vertex, geom, neumann, ell)
 end
 
 """
@@ -328,53 +326,20 @@ end
 
 Extract the block of the vertex for a specific charge triple.
 Returns a 3D array indexed by [α_L, α_R, α_T] (spec convention).
+Reads directly from the TensorMap.
 """
 function charge_block(vd::VertexData, n_L::Int, n_R::Int, n_T::Int)
-    (haskey(vd.basis_bond.states, n_L) &&
-     haskey(vd.basis_bond.states, n_R) &&
-     haskey(vd.basis_phys.states, n_T)) || return zeros(Float64, 0, 0, 0)
-
-    d_L = length(vd.basis_bond.states[n_L])
-    d_R = length(vd.basis_bond.states[n_R])
-    d_T = length(vd.basis_phys.states[n_T])
-    block = zeros(Float64, d_L, d_R, d_T)
-    for αL in 1:d_L, αR in 1:d_R, αT in 1:d_T
-        key = (n_T, n_L, n_R, αT, αL, αR)
-        if haskey(vd.raw, key)
-            block[αL, αR, αT] = vd.raw[key]
-        end
+    V = vd.vertex
+    for (f1, f2) in fusiontrees(V)
+        fn_T = Int(f2.uncoupled[1].charge)
+        fn_L = Int(f2.uncoupled[2].charge)
+        fn_R = Int(f2.uncoupled[3].charge)
+        (fn_T == n_T && fn_L == n_L && fn_R == n_R) || continue
+        blk = V[f1, f2]
+        # blk is (d_T, d_L, d_R); permute to spec convention (d_L, d_R, d_T)
+        return permutedims(Array(blk), (2, 3, 1))
     end
-    block
-end
-
-"""
-    modified_vertex_raw(vd::VertexData; c::Float64=1.0) -> Dict
-
-Compute the modified vertex Ṽ = e^{(H_L+H_R)ℓ/2} · V, where
-H = π/w (L₀ - c/24) is the open-string Hamiltonian on a strip of width w=1.
-
-Each raw entry is multiplied by
-  exp(π ℓ/2 (h_L + N_L - c/24)) · exp(π ℓ/2 (h_R + N_R - c/24))
-where h_i + N_i is the conformal dimension of the state on arm i.
-Only the bond (L, R) arms get the factor; the physical (T) arm does not.
-"""
-function modified_vertex_raw(vd::VertexData; c::Float64=1.0)
-    R = vd.R
-    ℓ = vd.ell
-    basis_bond = vd.basis_bond
-
-    modified = Dict{NTuple{6, Int}, Float64}()
-    for (key, val) in vd.raw
-        n_T, n_L, n_R, αT, αL, αR = key
-        h_L = (n_L / R)^2 / 2
-        N_L = basis_bond.levels[n_L][αL]
-        h_R = (n_R / R)^2 / 2
-        N_R = basis_bond.levels[n_R][αR]
-        factor = exp(π * ℓ / 2 * (h_L + N_L - c / 24)) *
-                 exp(π * ℓ / 2 * (h_R + N_R - c / 24))
-        modified[key] = val * factor
-    end
-    modified
+    return zeros(Float64, 0, 0, 0)
 end
 
 """
@@ -386,125 +351,21 @@ function conformal_dim(basis::FockBasis, n::Int, α::Int)
     (n / basis.R)^2 / 2 + basis.levels[n][α]
 end
 
-"""
-    convergence_ratio(raw::Dict, vd::VertexData; h_cut=nothing)
-
-Compute ‖Π_{h≤h_cut} Ṽ‖ / ‖Ṽ‖ where Π projects each of the three
-tensor factors to the subspace with conformal dimension ≤ h_cut.
-Default h_cut = min(h_bond, h_phys) - 1 (i.e., drop the top shell).
-
-Returns (ratio, full_norm, projected_norm).
-"""
-function convergence_ratio(raw::Dict{NTuple{6, Int}, Float64}, vd::VertexData;
-                           h_cut::Union{Float64, Nothing}=nothing)
-    if h_cut === nothing
-        h_cut = min(vd.cft.trunc.h_bond, vd.cft.trunc.h_phys) - 1.0
-    end
-
-    full_sq = 0.0
-    proj_sq = 0.0
-    for (key, val) in raw
-        n_T, n_L, n_R, αT, αL, αR = key
-        full_sq += val^2
-        # Check all three factors
-        hd_L = conformal_dim(vd.basis_bond, n_L, αL)
-        hd_R = conformal_dim(vd.basis_bond, n_R, αR)
-        hd_T = conformal_dim(vd.basis_phys, n_T, αT)
-        if hd_L ≤ h_cut + 1e-10 && hd_R ≤ h_cut + 1e-10 && hd_T ≤ h_cut + 1e-10
-            proj_sq += val^2
-        end
-    end
-    full_norm = sqrt(full_sq)
-    proj_norm = sqrt(proj_sq)
-    ratio = full_norm > 0 ? proj_norm / full_norm : 1.0
-    (ratio=ratio, full_norm=full_norm, projected_norm=proj_norm)
-end
-
-"""
-    contract_T(raw::Dict, vd::VertexData, n_T::Int, αT::Int) -> Dict
-
-Contract the raw vertex with a specific state (n_T, αT) on the T arm.
-Returns a dict keyed by (n_L, n_R, αL, αR) → value.
-"""
-function contract_T(raw::Dict{NTuple{6, Int}, Float64}, vd::VertexData,
-                    n_T::Int, αT::Int)
-    result = Dict{NTuple{4, Int}, Float64}()
-    for (key, val) in raw
-        kn_T, n_L, n_R, kαT, αL, αR = key
-        kn_T == n_T && kαT == αT || continue
-        result[(n_L, n_R, αL, αR)] = val
-    end
-    result
-end
-
-"""
-    contract_TL(raw::Dict, vd::VertexData, n_T, αT, n_L, αL) -> Dict
-
-Contract with specific states on T and L arms.
-Returns a dict keyed by (n_R, αR) → value.
-"""
-function contract_TL(raw::Dict{NTuple{6, Int}, Float64}, vd::VertexData,
-                     n_T::Int, αT::Int, n_L::Int, αL::Int)
-    result = Dict{NTuple{2, Int}, Float64}()
-    for (key, val) in raw
-        kn_T, kn_L, n_R, kαT, kαL, αR = key
-        kn_T == n_T && kαT == αT && kn_L == n_L && kαL == αL || continue
-        result[(n_R, αR)] = val
-    end
-    result
-end
-
-"""
-    convergence_ratio_2leg(contracted::Dict{NTuple{4,Int},Float64},
-                           basis_bond::FockBasis; h_cut) -> NamedTuple
-
-Convergence ratio for a 2-leg object (after contracting T arm).
-Projects each bond factor to h ≤ h_cut.
-"""
-function convergence_ratio_2leg(contracted::Dict{NTuple{4, Int}, Float64},
-                                basis_bond::FockBasis; h_cut::Float64)
-    full_sq = 0.0
-    proj_sq = 0.0
-    for ((n_L, n_R, αL, αR), val) in contracted
-        full_sq += val^2
-        hd_L = conformal_dim(basis_bond, n_L, αL)
-        hd_R = conformal_dim(basis_bond, n_R, αR)
-        if hd_L ≤ h_cut + 1e-10 && hd_R ≤ h_cut + 1e-10
-            proj_sq += val^2
-        end
-    end
-    full_norm = sqrt(full_sq)
-    proj_norm = sqrt(proj_sq)
-    ratio = full_norm > 0 ? proj_norm / full_norm : 1.0
-    (ratio=ratio, full_norm=full_norm, projected_norm=proj_norm)
-end
-
-"""
-    convergence_ratio_1leg(contracted::Dict{NTuple{2,Int},Float64},
-                           basis_bond::FockBasis; h_cut) -> NamedTuple
-
-Convergence ratio for a 1-leg object (after contracting T and L arms).
-Projects the remaining bond factor to h ≤ h_cut.
-"""
-function convergence_ratio_1leg(contracted::Dict{NTuple{2, Int}, Float64},
-                                basis_bond::FockBasis; h_cut::Float64)
-    full_sq = 0.0
-    proj_sq = 0.0
-    for ((n_R, αR), val) in contracted
-        full_sq += val^2
-        hd_R = conformal_dim(basis_bond, n_R, αR)
-        if hd_R ≤ h_cut + 1e-10
-            proj_sq += val^2
-        end
-    end
-    full_norm = sqrt(full_sq)
-    proj_norm = sqrt(proj_sq)
-    ratio = full_norm > 0 ? proj_norm / full_norm : 1.0
-    (ratio=ratio, full_norm=full_norm, projected_norm=proj_norm)
-end
-
 # ============================================================
-# TensorMap-native operations (preferred over raw-dict versions)
+# TensorMap-native analysis primitives
+#
+# The recommended way to do analysis is to compose these primitives
+# directly. For example, to compute the projected norm after contracting
+# the T leg with a charge-n selector:
+#
+#   V_reshaped = permute(Vm, ((1,), (2, 3)))
+#   sel = build_selector(bp, n, alpha)
+#   contracted = sel * V_reshaped          # V_{-n} ← V_bond²
+#   projected = project_to_hcut(contracted, [bb, bb], h_cut)
+#   ratio = norm(projected) / norm(contracted)
+#
+# The specialized functions (projected_norm_after_contract_T, etc.) are
+# kept for backward compat but the compositional form is preferred.
 # ============================================================
 
 """
@@ -531,30 +392,14 @@ end
 """
     modified_vertex(vd::VertexData; c=1.0) -> TensorMap
 
-Compute the modified vertex as a TensorMap:
-Vmod = e^{(H_L+H_R)*ell/2} * V.
-Rescales each entry by the propagator factor on the two bond (L, R) arms.
-The physical (T) arm is unmodified.
+Compute the modified vertex Ṽ = V ∘ (id_phys ⊗ D ⊗ D) where
+D = e^{H ℓ/2} is the propagator factor on each bond arm.
+
+This is a pure TensorKit composition — no block iteration.
 """
 function modified_vertex(vd::VertexData; c::Float64=1.0)
-    Vmod = copy(vd.vertex)
-    bb = vd.basis_bond
-    ell = vd.ell
-    for (f1, f2) in fusiontrees(Vmod)
-        n_L = Int(f2.uncoupled[2].charge)
-        n_R = Int(f2.uncoupled[3].charge)
-        (haskey(bb.levels, n_L) && haskey(bb.levels, n_R)) || continue
-        blk = Vmod[f1, f2]
-        for aT in axes(blk, 1), aL in axes(blk, 2), aR in axes(blk, 3)
-            hd_L = conformal_dim(bb, n_L, aL)
-            hd_R = conformal_dim(bb, n_R, aR)
-            factor = exp(pi * ell / 2 * (hd_L - c / 24)) *
-                     exp(pi * ell / 2 * (hd_R - c / 24))
-            blk[aT, aL, aR] *= factor
-        end
-        Vmod[f1, f2] = blk
-    end
-    Vmod
+    D = build_propagator_factor(vd.basis_bond, vd.ell, c)
+    vd.vertex * (id(vd.basis_phys.V) ⊗ D ⊗ D)
 end
 
 """
@@ -715,6 +560,32 @@ function full_norm_after_contract_TL(Vm::TensorMap, vec_T::Vector, vec_L::Vector
         end
     end
     sqrt(sum(v^2 for (_, v) in contracted; init=0.0))
+end
+
+"""
+    build_selector(basis::FockBasis, n::Int, alpha::Int) -> TensorMap
+
+Build a charge selector: a TensorMap `V_{-n} ← V'` that picks out the
+alpha-th basis state at charge n.
+
+Used for charged contractions: `selector * permute(vertex, ((1,),(2,3)))`
+gives a charged TensorMap representing the vertex with one leg fixed.
+
+The codomain V_{-n} is a 1D space at charge -n (the dual-charge convention
+from the permute-induced dualization). The domain is V' (the dual space).
+"""
+function build_selector(basis::FockBasis, n::Int, alpha::Int)
+    V_neg_n = Vect[U1Irrep](U1Irrep(-n) => 1)
+    sel = zeros(Float64, V_neg_n, basis.V')
+    for (f1, f2) in fusiontrees(sel)
+        fn = Int(f2.uncoupled[1].charge)
+        fn == -n || continue
+        blk = sel[f1, f2]
+        alpha <= size(blk, 2) || continue
+        blk[1, alpha] = 1.0
+        sel[f1, f2] = blk
+    end
+    sel
 end
 
 """

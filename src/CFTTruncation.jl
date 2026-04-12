@@ -22,10 +22,9 @@ include("Recursion.jl")
 # remain reachable via the qualified `CFTTruncation.X` form.
 export TruncationSpec, CompactBosonCFT
 export compute_vertex, vertex_sweep, charge_block, VertexData
-export modified_vertex_raw, convergence_ratio, conformal_dim
-export contract_T, contract_TL, convergence_ratio_2leg, convergence_ratio_1leg
+export conformal_dim
 export modified_vertex, modified_vertex_cache, build_propagator_factor
-export project_to_hcut
+export project_to_hcut, build_selector
 export projected_norm_after_contract_T, projected_norm_after_contract_TL
 export full_norm_after_contract_T, full_norm_after_contract_TL
 export weight_shells, random_unit_vec
