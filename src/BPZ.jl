@@ -28,12 +28,16 @@ end
 """
     build_bpz_map(basis::FockBasis) -> TensorMap
 
-Build the BPZ conjugation map η : V → V (endomorphism).
-Diagonal with entries (-1)^level.
+Build the BPZ conjugation map η : V → V' (maps kets to dual vectors).
+Diagonal with entries (-1)^level. The codomain is V' (the dual space),
+reflecting that BPZ conjugation sends states to covectors.
+
+For U(1) grading, V' has charge sectors conjugated (charge n → -n), so
+the block at (V' charge -n, V charge n) is the (-1)^level diagonal.
 """
 function build_bpz_map(basis::FockBasis)
     V = basis.V
-    η = zeros(Float64, V, V)
+    η = zeros(Float64, V', V)
     for (f₁, f₂) in fusiontrees(η)
         n = Int(f₂.uncoupled[1].charge)
         haskey(basis.levels, n) || continue

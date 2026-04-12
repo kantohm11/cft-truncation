@@ -12,9 +12,13 @@ using TensorKit
         @test domain(η_form) == basis.V ⊗ basis.V
     end
 
-    @testset "7.1 Conjugation map: diagonal with (-1)^N" begin
+    @testset "7.1 Conjugation map: V' ← V, diagonal with (-1)^N" begin
         basis = build_fock_basis(1.0, 3.0)
         η = build_bpz_map(basis)
+
+        # η is V' ← V (not V ← V)
+        @test codomain(η) == ProductSpace(basis.V')
+        @test domain(η) == ProductSpace(basis.V)
 
         for (f₁, f₂) in fusiontrees(η)
             n = Int(f₂.uncoupled[1].charge)
@@ -43,11 +47,12 @@ using TensorKit
         @test blk[7,7] ≈ -1.0   # level 3
     end
 
-    @testset "7.3 Involution: η² = id" begin
+    @testset "7.3 Involution: η' ∘ η = id on V" begin
         basis = build_fock_basis(1.0, 3.0)
         η = build_bpz_map(basis)
-        # η is V ← V (endomorphism), so η*η should be identity
-        η2 = η * η
+        # η : V' ← V.  η' (adjoint) : V ← V''.  V'' ≅ V canonically.
+        # So η' ∘ η : V → V'' ≅ V should be identity (since (±1)² = 1).
+        η2 = η' * η
         @test η2 ≈ id(basis.V) atol=1e-14
     end
 
