@@ -359,11 +359,30 @@ end
 Compute the modified vertex Ṽ = V ∘ (id_phys ⊗ D ⊗ D) where
 D = e^{H ℓ/2} is the propagator factor on each bond arm.
 
-This is a pure TensorKit composition — no block iteration.
+Mathematically this is `vertex * (id(V_phys) ⊗ D ⊗ D)`, but that
+constructs a dense intermediate TensorMap of size dim³ × dim³. Since D
+is diagonal, the operation is just entry-wise scaling — done directly
+on blocks for O(entries) cost with no intermediate.
 """
 function modified_vertex(vd::VertexData; c::Float64=1.0)
-    D = build_propagator_factor(vd.basis_bond, vd.ell, c)
-    vd.vertex * (id(vd.basis_phys.V) ⊗ D ⊗ D)
+    Vmod = copy(vd.vertex)
+    bb = vd.cft.basis_bond
+    ell = vd.ell
+    for (f1, f2) in fusiontrees(Vmod)
+        n_L = Int(f2.uncoupled[2].charge)
+        n_R = Int(f2.uncoupled[3].charge)
+        (haskey(bb.levels, n_L) && haskey(bb.levels, n_R)) || continue
+        blk = Vmod[f1, f2]
+        for aT in axes(blk, 1), aL in axes(blk, 2), aR in axes(blk, 3)
+            hd_L = conformal_dim(bb, n_L, aL)
+            hd_R = conformal_dim(bb, n_R, aR)
+            factor = exp(pi * ell / 2 * (hd_L - c / 24)) *
+                     exp(pi * ell / 2 * (hd_R - c / 24))
+            blk[aT, aL, aR] *= factor
+        end
+        Vmod[f1, f2] = blk
+    end
+    Vmod
 end
 
 """
