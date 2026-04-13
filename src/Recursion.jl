@@ -150,21 +150,19 @@ function _recurse_entry(t::NTuple{6, Int},
     mk = count(==(m), _arm_partition(arm, λ_L, λ_R, λ_T))
     norm_factor = 1.0 / sqrt(m * mk)
 
-    # Remove one copy of m from the arm's partition to get μ
+    # Remove one copy of m from the arm's partition to get μ.
+    # Use the pre-built partition_index hashmap for O(1) lookup.
     if arm == :L
         μ = _remove_part(λ_L, m)
-        αL_new = _find_partition(basis_bond.states[n_L], μ)
-        @assert αL_new !== nothing
+        αL_new = basis_bond.partition_index[n_L][μ]
         t_residual = (n_T, n_L, n_R, αT, αL_new, αR)
     elseif arm == :R
         μ = _remove_part(λ_R, m)
-        αR_new = _find_partition(basis_bond.states[n_R], μ)
-        @assert αR_new !== nothing
+        αR_new = basis_bond.partition_index[n_R][μ]
         t_residual = (n_T, n_L, n_R, αT, αL, αR_new)
     else # :T
         μ = _remove_part(λ_T, m)
-        αT_new = _find_partition(basis_phys.states[n_T], μ)
-        @assert αT_new !== nothing
+        αT_new = basis_phys.partition_index[n_T][μ]
         t_residual = (n_T, n_L, n_R, αT_new, αL, αR)
     end
 

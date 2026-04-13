@@ -9,6 +9,7 @@ struct FockBasis
     levels::Dict{Int, Vector{Int}}           # sector n -> level of each state
     z_lambda::Dict{Int, Vector{Float64}}     # sector n -> normalization factors
     V::GradedSpace                           # U1-graded TensorKit space
+    partition_index::Dict{Int, Dict{Vector{Int}, Int}}  # sector n -> (partition -> basis index)
 end
 
 """
@@ -50,7 +51,17 @@ function build_fock_basis(R::Real, h_max::Real)
     end
     V = Vect[U1Irrep](sector_dims...)
 
-    FockBasis(R, h_max, states, levels, z_lambda, V)
+    # Pre-build partition → index hashmap for O(1) lookup
+    partition_index = Dict{Int, Dict{Vector{Int}, Int}}()
+    for n in keys(states)
+        pidx = Dict{Vector{Int}, Int}()
+        for (i, p) in enumerate(states[n])
+            pidx[p] = i
+        end
+        partition_index[n] = pidx
+    end
+
+    FockBasis(R, h_max, states, levels, z_lambda, V, partition_index)
 end
 
 """
