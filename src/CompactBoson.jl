@@ -33,6 +33,7 @@ to `compute_vertex(cft, ell)` for different ℓ values.
 """
 struct CompactBosonCFT
     R::Float64
+    c::Float64                                     # central charge (c=1 for compact boson)
     trunc::TruncationSpec
     basis_bond::FockBasis
     basis_phys::FockBasis
@@ -53,7 +54,7 @@ You may pass either a `trunc::TruncationSpec`, or `h_bond` and `h_phys`
 directly. (Julia methods only dispatch on positional args, so we use a
 single kwarg method with optional fields rather than two overloads.)
 """
-function CompactBosonCFT(; R::Real,
+function CompactBosonCFT(; R::Real, c::Real=1.0,
                         trunc::Union{TruncationSpec,Nothing}=nothing,
                         h_bond::Union{Real,Nothing}=nothing,
                         h_phys::Union{Real,Nothing}=nothing)
@@ -77,6 +78,6 @@ function CompactBosonCFT(; R::Real,
 
     bpz_bond_form = build_bpz_form(basis_bond)
 
-    CompactBosonCFT(R_f, trunc, basis_bond, basis_phys,
+    CompactBosonCFT(R_f, Float64(c), trunc, basis_bond, basis_phys,
                     J_bond, J_phys, J_bond_sp, J_phys_sp, bpz_bond_form, m_max)
 end

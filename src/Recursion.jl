@@ -392,10 +392,11 @@ function build_propagator_factor(basis::FockBasis, ell::Float64, c::Float64)
 end
 
 """
-    modified_vertex(vd::VertexData; c=1.0) -> TensorMap
+    modified_vertex(vd::VertexData) -> TensorMap
 
 Compute the modified vertex Ṽ = V ∘ (id_phys ⊗ D ⊗ D) where
 D = e^{H ℓ/2} is the propagator factor on each bond arm.
+The central charge `c` is read from `vd.cft.c`.
 
 Uses `@tensor` to contract D into the two bond legs of the vertex,
 then `permute` to restore the original (0,3) codomain/domain structure.
@@ -419,26 +420,24 @@ The workaround: write `@tensor result[-1 -2 -3] := ...` (no semicolons),
 which puts all free legs in the **codomain** (producing a (3,0) Tensor
 with V' legs), then call `permute(result, ((), (1,2,3)))` to move them
 to the domain. The double dualization V → V' (from @tensor) → V'' = V
-(from permute) recovers the original space. This is verified to produce
-identical results to the block-iteration approach.
+(from permute) recovers the original space.
 """
-function modified_vertex(vd::VertexData; c::Float64=1.0)
+function modified_vertex(vd::VertexData)
     V = vd.vertex
-    D = build_propagator_factor(vd.cft.basis_bond, vd.ell, c)
-    # @tensor puts free legs in codomain (as V'), permute restores (0,3) with V.
-    # See docstring for explanation of this pattern.
+    D = build_propagator_factor(vd.cft.basis_bond, vd.ell, vd.cft.c)
     @tensor tmp[-1 -2 -3] := V[-1 1 2] * D[1; -2] * D[2; -3]
     permute(tmp, ((), (1, 2, 3)))
 end
 
 """
-    modified_vertex_cache(cft, ells; c=1.0, series_order=20) -> Dict{Float64, TensorMap}
+    modified_vertex_cache(cft, ells; series_order=20) -> Dict{Float64, TensorMap}
 
 Precompute and cache modified vertices for a sweep over ell values.
+Central charge c is read from cft.c.
 """
 function modified_vertex_cache(cft::CompactBosonCFT, ells;
-                               c::Float64=1.0, series_order::Int=20)
-    Dict(Float64(l) => modified_vertex(compute_vertex(cft, l; series_order); c=c)
+                               series_order::Int=20)
+    Dict(Float64(l) => modified_vertex(compute_vertex(cft, l; series_order))
          for l in ells)
 end
 
