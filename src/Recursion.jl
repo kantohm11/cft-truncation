@@ -52,7 +52,7 @@ end
 function _build_vertex(cft::CompactBosonCFT, geom::Geometry, neumann::NeumannData,
                        ell::Float64)
     raw = _compute_vertex_raw(cft.basis_bond, cft.basis_phys, geom, neumann,
-                              cft.J_bond, cft.J_phys, cft.R)
+                              cft.J_bond, cft.J_phys, cft.J_bond_sp, cft.J_phys_sp, cft.R)
     vertex = _assemble_vertex(raw, cft.basis_bond, cft.basis_phys)
     VertexData(cft, vertex, geom, neumann, ell)
 end
@@ -64,7 +64,7 @@ Here α_i is the 1-based index of the state within sector n_i.
 """
 function _compute_vertex_raw(basis_bond::FockBasis, basis_phys::FockBasis,
                              geom::Geometry, neumann::NeumannData,
-                             J_bond, J_phys, R::Float64)
+                             J_bond, J_phys, J_bond_sp, J_phys_sp, R::Float64)
     raw = Dict{NTuple{6, Int}, Float64}()
 
     # Iterate over all valid (n_L, n_R, n_T) triples (with n_L + n_R + n_T = 0)
@@ -105,7 +105,7 @@ function _compute_vertex_raw(basis_bond::FockBasis, basis_phys::FockBasis,
         N_tot = total_level(t)
         N_tot == 0 && continue
         raw[t] = _recurse_entry(t, raw, basis_bond, basis_phys,
-                                neumann, J_bond, J_phys)
+                                neumann, J_bond_sp, J_phys_sp)
     end
 
     raw
@@ -120,7 +120,7 @@ function _recurse_entry(t::NTuple{6, Int},
                         raw::Dict{NTuple{6, Int}, Float64},
                         basis_bond::FockBasis, basis_phys::FockBasis,
                         neumann::NeumannData,
-                        J_bond, J_phys)
+                        J_bond_sp, J_phys_sp)
     n_T, n_L, n_R, αT, αL, αR = t
 
     λ_T = basis_phys.states[n_T][αT]
@@ -176,8 +176,8 @@ function _recurse_entry(t::NTuple{6, Int},
 
         # Apply J_k on arm j to the appropriate state in t_residual
         # Returns a dict: state_index -> coefficient
-        contrib = _apply_Jk_on_arm(t_residual, j, k, basis_bond, basis_phys,
-                                   J_bond, J_phys, raw)
+        contrib = _apply_Jk_on_arm_sparse(t_residual, j, k,
+                                          J_bond_sp, J_phys_sp, raw)
         result_ward += N_coeff * contrib
     end
 
@@ -203,49 +203,29 @@ function _neumann_coeff(neumann::NeumannData, i::Symbol, j::Symbol, m::Int, k::I
 end
 
 """
-Apply J_k on arm `j` to the state in `t`, then look up the resulting
-vertex values (weighted by the J_k matrix coefficients).
-Returns: sum over resulting states of (J_k coefficient) · V(resulting state).
+Apply J_k on arm `j` to the state in `t` using sparse J_k representation.
+Each column of J_k (k≥1) has at most 1 nonzero entry, stored as (target, coeff).
+J_0 is diagonal: each column has exactly 1 nonzero at (col, n/R).
+Returns: J_k coefficient · V(resulting state), or 0 if J_k annihilates the state.
 """
-function _apply_Jk_on_arm(t::NTuple{6, Int}, j::Symbol, k::Int,
-                          basis_bond::FockBasis, basis_phys::FockBasis,
-                          J_bond, J_phys,
-                          raw::Dict{NTuple{6, Int}, Float64})
+function _apply_Jk_on_arm_sparse(t::NTuple{6, Int}, j::Symbol, k::Int,
+                                  J_bond_sp, J_phys_sp,
+                                  raw::Dict{NTuple{6, Int}, Float64})
     n_T, n_L, n_R, αT, αL, αR = t
-    result = 0.0
 
     if j == :L
-        Jk_mat = J_bond[n_L][k + 1]  # index k+1 for stored J_k
-        d = size(Jk_mat, 1)
-        for αL_new in 1:d
-            coeff = Jk_mat[αL_new, αL]
-            coeff == 0.0 && continue
-            t_new = (n_T, n_L, n_R, αT, αL_new, αR)
-            haskey(raw, t_new) || continue
-            result += coeff * raw[t_new]
-        end
+        (target, coeff) = J_bond_sp[n_L][k + 1][αL]
+        target == 0 && return 0.0
+        return coeff * get(raw, (n_T, n_L, n_R, αT, target, αR), 0.0)
     elseif j == :R
-        Jk_mat = J_bond[n_R][k + 1]
-        d = size(Jk_mat, 1)
-        for αR_new in 1:d
-            coeff = Jk_mat[αR_new, αR]
-            coeff == 0.0 && continue
-            t_new = (n_T, n_L, n_R, αT, αL, αR_new)
-            haskey(raw, t_new) || continue
-            result += coeff * raw[t_new]
-        end
+        (target, coeff) = J_bond_sp[n_R][k + 1][αR]
+        target == 0 && return 0.0
+        return coeff * get(raw, (n_T, n_L, n_R, αT, αL, target), 0.0)
     else # :T
-        Jk_mat = J_phys[n_T][k + 1]
-        d = size(Jk_mat, 1)
-        for αT_new in 1:d
-            coeff = Jk_mat[αT_new, αT]
-            coeff == 0.0 && continue
-            t_new = (n_T, n_L, n_R, αT_new, αL, αR)
-            haskey(raw, t_new) || continue
-            result += coeff * raw[t_new]
-        end
+        (target, coeff) = J_phys_sp[n_T][k + 1][αT]
+        target == 0 && return 0.0
+        return coeff * get(raw, (n_T, n_L, n_R, target, αL, αR), 0.0)
     end
-    result
 end
 
 """

@@ -7,7 +7,7 @@ using SparseArrays: sparse, nnz
 
     @testset "6.1 J₀ diagonal with eigenvalue n/R" begin
         basis = build_fock_basis(1.0, 3.0)
-        J = build_J_matrices(basis, 3)
+        J, _ = build_J_matrices(basis, 3)
         for n in keys(basis.states)
             d = length(basis.states[n])
             J0 = J[n][1]   # k=0 stored at index 1
@@ -17,7 +17,7 @@ using SparseArrays: sparse, nnz
 
     @testset "6.2 J₁ matrix elements at n = 0" begin
         basis = build_fock_basis(1.0, 3.0)
-        J = build_J_matrices(basis, 3)
+        J, _ = build_J_matrices(basis, 3)
         J1 = J[0][2]   # k=1 at index 2, sector n=0
         @test size(J1) == (7, 7)
         # Check nonzero entries
@@ -30,7 +30,7 @@ using SparseArrays: sparse, nnz
 
     @testset "6.3 J₂ matrix elements at n = 0" begin
         basis = build_fock_basis(1.0, 3.0)
-        J = build_J_matrices(basis, 3)
+        J, _ = build_J_matrices(basis, 3)
         J2 = J[0][3]   # k=2 at index 3
         @test J2[1, 3] ≈ √2              # [2] → ∅
         @test J2[2, 6] ≈ √2              # [2,1] → [1]
@@ -41,7 +41,7 @@ using SparseArrays: sparse, nnz
         # doesn't push outside the truncated space. At h_max=4, n=0,
         # states up to level 3 are safe (J_{-1} adds level 1 → level 4 exists).
         basis = build_fock_basis(1.0, 4.0)
-        J = build_J_matrices(basis, 4)
+        J, _ = build_J_matrices(basis, 4)
         J_minus1 = build_creation_matrix(basis, 0, 1)
         J1 = J[0][2]
         comm = J1 * J_minus1 - J_minus1 * J1
@@ -54,7 +54,7 @@ using SparseArrays: sparse, nnz
 
     @testset "6.5 Commutation at n ≠ 0" begin
         basis = build_fock_basis(1.0, 4.0)
-        J = build_J_matrices(basis, 4)
+        J, _ = build_J_matrices(basis, 4)
         J_minus1 = build_creation_matrix(basis, 1, 1)
         J1 = J[1][2]
         comm = J1 * J_minus1 - J_minus1 * J1

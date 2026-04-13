@@ -36,8 +36,10 @@ struct CompactBosonCFT
     trunc::TruncationSpec
     basis_bond::FockBasis
     basis_phys::FockBasis
-    J_bond::Dict{Int, Vector{Matrix{Float64}}}     # J_k (k=0..m_max) per momentum sector
+    J_bond::Dict{Int, Vector{Matrix{Float64}}}     # dense J_k per sector (for tests)
     J_phys::Dict{Int, Vector{Matrix{Float64}}}
+    J_bond_sp::Dict{Int, Vector{Vector{Tuple{Int,Float64}}}}  # sparse J_k (for recursion)
+    J_phys_sp::Dict{Int, Vector{Vector{Tuple{Int,Float64}}}}
     bpz_bond_form::TensorMap                       # ℂ ← V_bond ⊗ V_bond
     m_max::Int                                     # max mode index for Ward recursion
 end
@@ -70,11 +72,11 @@ function CompactBosonCFT(; R::Real,
     # partition in either basis, plus a small buffer.
     m_max = max(floor(Int, trunc.h_bond), floor(Int, trunc.h_phys)) + 2
 
-    J_bond = build_J_matrices(basis_bond, m_max)
-    J_phys = build_J_matrices(basis_phys, m_max)
+    J_bond, J_bond_sp = build_J_matrices(basis_bond, m_max)
+    J_phys, J_phys_sp = build_J_matrices(basis_phys, m_max)
 
     bpz_bond_form = build_bpz_form(basis_bond)
 
     CompactBosonCFT(R_f, trunc, basis_bond, basis_phys,
-                    J_bond, J_phys, bpz_bond_form, m_max)
+                    J_bond, J_phys, J_bond_sp, J_phys_sp, bpz_bond_form, m_max)
 end
