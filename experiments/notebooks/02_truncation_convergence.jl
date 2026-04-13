@@ -37,10 +37,9 @@ import LinearAlgebra
 # ╔═╡ c0000001-0011-0000-0000-000000000001
 begin
     R_val = 1.0
-    c_cft = 1.0
     H_MAX = 6.0
     h_truncs = [2.0, 3.0, 4.0, 5.0, 6.0]
-    ells = vcat(collect(0.05:0.05:0.5), collect(0.6:0.1:1.5))
+    ells = collect(0.025:0.025:0.5)  # dense grid, ℓ ≤ 0.5 only
     Random.seed!(42)
 end
 
@@ -48,7 +47,7 @@ end
 cft6 = CompactBosonCFT(R=R_val, trunc=TruncationSpec(H_MAX))
 
 # ╔═╡ c0000001-0013-0000-0000-000000000001
-cache = modified_vertex_cache(cft6, ells; c=c_cft)
+cache = modified_vertex_cache(cft6, ells)
 
 # ╔═╡ c0000001-0014-0000-0000-000000000001
 md"### Helpers"
@@ -98,7 +97,7 @@ end
 # ╔═╡ c0000001-0022-0000-0000-000000000001
 let
     # x = h_trunc, curves per ℓ (select a few representative ℓ values)
-    ell_sel = [0.1, 0.2, 0.3, 0.5, 0.8, 1.0, 1.5]
+    ell_sel = [0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5]
     fig = Figure(size=(700, 400))
     ax = Axis(fig[1, 1]; xlabel="h_trunc", ylabel="r",
               title="Exp 1: Full 3-leg convergence ratio",
@@ -142,7 +141,7 @@ end
 # ╔═╡ c0000001-0033-0000-0000-000000000001
 let
     h_psis = sort(collect(keys(exp2_data)))
-    ell_sel = [0.1, 0.2, 0.3, 0.5, 0.8, 1.0]
+    ell_sel = [0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5]
     n_panels = length(h_psis)
     ncols = min(3, n_panels)
     nrows = cld(n_panels, ncols)
@@ -203,7 +202,7 @@ end
 # ╔═╡ c0000001-0043-0000-0000-000000000001
 let
     h_psis = sort(collect(keys(exp3_data)))
-    ell_sel = [0.1, 0.2, 0.3, 0.5, 0.8, 1.0]
+    ell_sel = [0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5]
     n_panels = length(h_psis)
     ncols = min(3, n_panels)
     nrows = cld(n_panels, ncols)
