@@ -12,7 +12,7 @@ using TensorKit
         @test domain(η_form) == basis.V ⊗ basis.V
     end
 
-    @testset "7.1 Conjugation map: V' ← V, diagonal with (-1)^N" begin
+    @testset "7.1 Conjugation map: V' ← V, diagonal with ∏(-1)^{k+1}" begin
         basis = build_fock_basis(1.0, 3.0)
         η = build_bpz_map(basis)
 
@@ -25,7 +25,10 @@ using TensorKit
             blk = η[f₁, f₂]
             d = size(blk, 1)
             for α in 1:d
-                @test blk[α, α] ≈ (-1.0)^basis.levels[n][α]
+                # BPZ sign for U(1) current (h=1): (-1)^{k+1} per mode
+                λ = basis.states[n][α]
+                expected = isempty(λ) ? 1.0 : prod(iseven(k) ? -1.0 : 1.0 for k in λ)
+                @test blk[α, α] ≈ expected
             end
             for α in 1:d, β in 1:d
                 α == β && continue
@@ -38,13 +41,14 @@ using TensorKit
         basis = build_fock_basis(1.0, 3.0)
         η = build_bpz_map(basis)
         blk = block(η, U1Irrep(0))
-        @test blk[1,1] ≈  1.0   # level 0
-        @test blk[2,2] ≈ -1.0   # level 1
-        @test blk[3,3] ≈  1.0   # level 2
-        @test blk[4,4] ≈  1.0   # level 2
-        @test blk[5,5] ≈ -1.0   # level 3
-        @test blk[6,6] ≈ -1.0   # level 3
-        @test blk[7,7] ≈ -1.0   # level 3
+        # BPZ sign = ∏(-1)^{k+1}: odd modes → +1, even modes → -1
+        @test blk[1,1] ≈  1.0   # level 0, []
+        @test blk[2,2] ≈  1.0   # level 1, [1]     (odd mode → +1)
+        @test blk[3,3] ≈ -1.0   # level 2, [2]     (even mode → -1)
+        @test blk[4,4] ≈  1.0   # level 2, [1,1]   (odd×2 → +1)
+        @test blk[5,5] ≈  1.0   # level 3, [3]     (odd mode → +1)
+        @test blk[6,6] ≈ -1.0   # level 3, [2,1]   (even×odd → -1)
+        @test blk[7,7] ≈  1.0   # level 3, [1,1,1] (odd×3 → +1)
     end
 
     @testset "7.3 Involution: η' ∘ η = id on V" begin

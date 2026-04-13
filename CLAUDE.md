@@ -7,6 +7,13 @@
 - **|B⟩⟩** = open Cardy state = caps the arm (arm disappears). This is what gives the strip propagator.
 - Never confuse the two. "Capping an arm" = |B⟩⟩, NOT |0⟩.
 
+### BPZ sign convention
+For the U(1) current J (weight h=1), the BPZ map acts on modes as:
+  `bpz(J_{-k}) = (-1)^{k+1} J_k`
+So odd modes (k=1,3,5,...) get **no sign flip**, even modes (k=2,4,6,...) get **-1**.
+The BPZ sign for a Fock state with partition λ = [k₁, k₂, ...] is `∏ (-1)^{kᵢ+1} = (-1)^{#even_parts}`.
+This is NOT (-1)^N (that would be the Virasoro/weight-2 convention).
+
 ## Caching: bump CACHE_VERSION
 
 When editing any of the following, bump `CACHE_VERSION` in `src/Cache.jl` and add a history entry:
@@ -15,13 +22,14 @@ When editing any of the following, bump `CACHE_VERSION` in `src/Cache.jl` and ad
 - `compute_geometry` (LocalCoordinates.jl)
 - `compute_neumann` (NeumannCoefficients.jl)
 - `primary_vertex` (PrimaryVertex.jl)
-- BPZ conventions (BPZ.jl)
 - FockBasis state ordering or normalization (FockSpace.jl)
 - `modified_vertex` propagator factor formula
 
+BPZ.jl is NOT in this list — BPZ is not used in the vertex recursion or caching.
+
 ## Pluto notebooks: verify before claiming success
 
-Always run `experiments/scripts/check_notebook.jl <notebook>` before declaring a notebook export finished. PlutoSliderServer writes HTML even when cells error — cell-level errors are invisible in the export success message. The `cell.errored` flag is on the `Cell` struct, NOT on `cell.output`.
+Always run `experiments/scripts/check_notebook.jl <notebook>` before declaring a notebook finished. HTML export can succeed even when cells error.
 
 ## TensorKit notes
 
