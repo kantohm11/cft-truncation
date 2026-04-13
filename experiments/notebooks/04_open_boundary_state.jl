@@ -181,31 +181,25 @@ end
 md"""
 ## Open-Open Duality Check
 
-$\langle B^{\text{open}} | e^{-T H} | B^{\text{open}} \rangle$ should equal
-the partition function $Z(T) = \text{Tr}_{\mathcal{H}_{aa}} e^{-T(L_0 - c/24)}$
-up to normalisation.
+The rectangle $[0,\pi] \times [0,T]$ with BC $a$ on all four sides can be
+quantized in two dual open channels — **both** give $\langle B|$propagator$|B\rangle$
+(NOT a trace):
+
+**Channel 1** (quantize along $\tau$): $f_1(T) = \sum |b|^2 e^{-T(h+N-c/24)}$
+
+**Channel 2** (quantize along $\sigma$): $f_2(T) = \sum |b|^2 e^{-(\pi^2/T)(h+N-c/24)}$
+
+Self-duality: $f_1(T) = f_2(T)$, i.e., $f(T) = f(\pi^2/T)$.
 """
 
 # ╔═╡ e0000001-0041-0000-0000-000000000001
-function open_overlap(basis, all_coeffs, T; c=1.0)
+function boundary_overlap(basis, all_coeffs, beta; c=1.0)
     s = 0.0
     for n in keys(basis.states)
         coeffs = all_coeffs[n]
         for (i, b) in enumerate(coeffs)
             h = conformal_dim(basis, n, i)
-            s += b^2 * exp(-T * (h - c / 24))
-        end
-    end
-    s
-end
-
-# ╔═╡ e0000001-0042-0000-0000-000000000001
-function partition_function(basis, T; c=1.0)
-    s = 0.0
-    for n in keys(basis.states)
-        for i in eachindex(basis.states[n])
-            h = conformal_dim(basis, n, i)
-            s += exp(-T * (h - c / 24))
+            s += b^2 * exp(-beta * (h - c / 24))
         end
     end
     s
@@ -214,15 +208,21 @@ end
 # ╔═╡ e0000001-0043-0000-0000-000000000001
 let
     all_coeffs = Dict(n => open_boundary_coeffs_A(basis, n) for n in keys(basis.states))
-    Ts = collect(0.1:0.1:2.0)
-    overlaps = [open_overlap(basis, all_coeffs, T) for T in Ts]
-    Zs = [partition_function(basis, T) for T in Ts]
-    ratios = overlaps ./ Zs
+    Ts = collect(0.2:0.1:3.0)
+    f1 = [boundary_overlap(basis, all_coeffs, T) for T in Ts]
+    f2 = [boundary_overlap(basis, all_coeffs, pi^2 / T) for T in Ts]
 
-    p = plot(Ts, ratios; xlabel="T", ylabel="⟨B|e^{-TH}|B⟩ / Z(T)",
-             title="Open-open duality ratio (should be T-independent)",
-             marker=:circle, markersize=4, legend=false, size=(600, 350))
-    p
+    p1 = plot(Ts, f1; label="f₁(T) = ⟨B|e^{-TH}|B⟩", xlabel="T",
+              ylabel="f(T)", marker=:circle, markersize=3, yscale=:log10)
+    plot!(p1, Ts, f2; label="f₂(T) = ⟨B|e^{-π²/T·H}|B⟩",
+          marker=:diamond, markersize=3)
+    plot!(p1; title="Open-open duality: f₁(T) vs f₂(T)", size=(650, 400))
+
+    p2 = plot(Ts, f1 ./ f2; xlabel="T", ylabel="f₁/f₂",
+              title="Ratio (=1 if duality holds)", marker=:circle,
+              markersize=4, legend=false, size=(650, 300))
+
+    plot(p1, p2; layout=(2, 1), size=(650, 600))
 end
 
 # ╔═╡ e0000001-0050-0000-0000-000000000001
@@ -264,7 +264,6 @@ md"""
 # ╠═e0000001-0032-0000-0000-000000000001
 # ╟─e0000001-0040-0000-0000-000000000001
 # ╠═e0000001-0041-0000-0000-000000000001
-# ╠═e0000001-0042-0000-0000-000000000001
 # ╠═e0000001-0043-0000-0000-000000000001
 # ╟─e0000001-0050-0000-0000-000000000001
 # ╟─e0000001-0060-0000-0000-000000000001
