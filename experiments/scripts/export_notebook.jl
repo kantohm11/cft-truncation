@@ -7,8 +7,8 @@
 
 using Pluto
 
-nb_path = ARGS[1]
-out_dir = get(ARGS, 2, joinpath(dirname(dirname(nb_path)), "results"))
+nb_path = abspath(ARGS[1])
+out_dir = length(ARGS) >= 2 ? abspath(ARGS[2]) : joinpath(dirname(dirname(nb_path)), "results")
 out_name = replace(basename(nb_path), ".jl" => ".html")
 out_path = joinpath(out_dir, out_name)
 
