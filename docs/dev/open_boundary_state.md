@@ -38,21 +38,53 @@ Hilbert space $\mathcal{H}'_{aa}$ from top/bottom BCs:
 
 $$Z = \langle B_a^{\prime\text{open}} | e^{-\pi(L'_0 - c/24)} | B_a^{\prime\text{open}} \rangle$$
 
-Both must agree — this is a modular-like (open-open duality) constraint purely within the open sector, with no closed strings involved.
+Both must agree, but with a **modular weight** from the conformal anomaly:
+
+$$f_1(T) / f_2(T) = (T/\pi)^{c/4}$$
+
+## Conformal anomaly prefactor
+
+The $(T/\pi)^{c/4}$ factor is the **Weyl anomaly** arising from the change of quantization direction. Physically, it comes from the zero-mode normalization: the Gaussian path integral over the zero mode of each scalar field has a measure proportional to $\sqrt{L}$ where $L$ is the spatial extent. Going from spatial width $\pi$ (channel 1) to spatial width $T$ (channel 2) gives a factor $\sqrt{T/\pi}$ per scalar. For $c$ scalars raised to the $-1/2$ power (from $f = \eta^{-c/2}$), this gives $(T/\pi)^{c/4}$.
+
+Equivalently, this follows from the Dedekind eta modular transformation $\eta(-1/\tau) = \sqrt{-i\tau}\,\eta(\tau)$ with $\tau = iT/\pi$.
 
 ## Relation to the T-vertex
 
 The open boundary state enters the T-vertex construction when capping an arm: inserting $|B_a^{\text{open}}\rangle$ on the physical (T) arm of the vertex yields a two-leg object (the propagator + boundary interaction). The modified vertex $\widetilde{V}_\ell$ composed with $|B_a^{\text{open}}\rangle$ on one arm should give the boundary operator insertion $X_\psi$ discussed in [modified_vertex.md](modified_vertex.md).
 
-## Computation for the compact boson
+## Closed form for the compact boson
 
-For the compact boson at radius $R$ with Neumann BC, the open boundary state in each momentum sector $n$ is determined by the gluing condition $(J_k - J_{-k})|B_n\rangle = 0$ for $k \geq 1$. In the normalised Fock basis $|\hat{\lambda}; n\rangle$, the coefficients $b_{n,\lambda} = \langle \hat{\lambda}; n | B_n^{\text{open}}\rangle$ must satisfy:
+### Momentum sector
 
-$$\sqrt{k \cdot m_k(\lambda)} \cdot b_{\lambda \setminus k} = \sqrt{k \cdot (m_k(\lambda) + 1)} \cdot b_{\lambda \cup k}$$
+For Neumann BC, the zero-mode integral over the strip projects onto **zero momentum only**: $|B^{\text{open}}\rangle$ lives purely in the $n = 0$ sector (Virasoro vacuum module).
 
-for each partition $\lambda$ and each $k \geq 1$, where $m_k(\lambda)$ is the multiplicity of part $k$ in $\lambda$.
+### Squeezed vacuum formula
 
-This is a set of linear recursion relations that determine $b_\lambda$ in terms of $b_\varnothing$ (the primary coefficient). The implementation constructs the state level by level.
+The gluing condition $(J_k - J_{-k})|B\rangle = 0$ for $k \geq 1$ determines a **squeezed vacuum**:
+
+$$|B^{\text{open}}\rangle = \exp\!\left(\sum_{k=1}^{\infty} \frac{J_{-k}^2}{2k}\right)|0\rangle$$
+
+This is the open-string analogue of the closed-string Ishibashi state $\exp(\sum \alpha_{-n}\tilde{\alpha}_{-n}/n)|0\rangle$, but pairing the mode with **itself** ($J_{-k}^2$ instead of $J_{-k}\tilde{J}_{-k}$).
+
+### Coefficients in the normalised basis
+
+The single-mode coefficient at even occupation $2m$ is:
+
+$$b(2m) = \prod_{j=1}^{m} \sqrt{\frac{2j-1}{2j}} = \frac{\sqrt{(2m)!}}{2^m\,m!}, \qquad b(\text{odd}) = 0$$
+
+The full coefficient for a partition $\lambda$ with multiplicities $m_k$:
+
+$$b_\lambda = \prod_{k} b(m_k(\lambda))$$
+
+Nonzero only when **all multiplicities are even** ("doubled partitions").
+
+### Exact overlap (product formula)
+
+Since $b(2m)^2 = \binom{2m}{m}/4^m$ and the generating function is $(1-x)^{-1/2}$, the boundary overlap factors over modes:
+
+$$f(T) = \langle B^{\text{open}}|e^{-T(L_0 - c/24)}|B^{\text{open}}\rangle = \eta(e^{-2T})^{-c/2}$$
+
+For $c = 1$: $f(T) = \eta(e^{-2T})^{-1/2}$. This converges exponentially fast as a product (no truncation needed).
 
 ## Novelty
 
