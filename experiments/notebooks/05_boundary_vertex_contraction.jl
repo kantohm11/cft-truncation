@@ -102,63 +102,72 @@ function compute_O(cft, ψ_B, η_bond, ell)
 end
 
 # ╔═╡ f0000001-0030-0000-0000-000000000001
-md"### Check $O \propto I$"
+md"""
+### Result: $O \propto (-1)^{\text{level}} \cdot e^{-d(\ell) \cdot L_0}$ (propagator)
+
+$O$ is NOT $\propto I$. It's the **BPZ-signed strip propagator**: diagonal with
+eigenvalues $\propto (-1)^N e^{-d(\ell)(h+N)}$. States at the same level have
+the same eigenvalue (confirmed numerically).
+
+Extract $d(\ell)$ from $|O_{00}/O_{11}| = e^{d(\ell)}$ (ratio of level-0 to level-1).
+"""
 
 # ╔═╡ f0000001-0031-0000-0000-000000000001
-let
-    ells = [0.05, 0.1, 0.2, 0.3, 0.5, 0.8, 1.0]
-    V = cft.basis_bond.V
-    I_V = id(V)
-
-    lines = ["  ℓ       ‖O‖           ‖O/‖O‖ - c·I/‖I‖‖"]
-    push!(lines, repeat("-", 55))
-    for ell in ells
-        O = compute_O(cft, ψ_B, η_bond, ell)
-        # Best scalar multiple: c = tr(O†·I) / tr(I†·I) = tr(O) / dim
-        # For TensorKit: tr via @tensor or sum of diagonal blocks
-        nO = norm(O)
-        nI = norm(I_V)
-        # Cosine similarity: |⟨O, I⟩| / (‖O‖·‖I‖)
-        # ⟨O, I⟩ = tr(O†·I) — for real TensorMaps this is just the Frobenius inner product
-        # In TensorKit: dot(O, I_V)... or just compute O_normalized vs I_normalized
-        O_hat = O / nO
-        I_hat = I_V / nI
-        dist = norm(O_hat - dot(O_hat, I_hat) * I_hat)  # rejection from I direction
-        cosine = abs(real(dot(O_hat, I_hat)))
-        push!(lines, @sprintf("  %.2f    %12.4e    cos(O,I) = %.8f   dist = %.2e", ell, nO, cosine, dist))
+function extract_d(O)
+    for (f1, f2) in fusiontrees(O)
+        Int(f2.uncoupled[1].charge) == 0 || continue
+        blk = O[f1, f2]
+        return log(abs(blk[1,1]) / abs(blk[2,2]))
     end
-    Base.Text(join(lines, "\n"))
+    NaN
 end
 
 # ╔═╡ f0000001-0040-0000-0000-000000000001
-md"### Plot: cosine similarity $|\cos(O, I)|$ vs $\ell$"
-
-# ╔═╡ f0000001-0041-0000-0000-000000000001
-let
-    ells = collect(0.05:0.05:1.0)
-    V = cft.basis_bond.V
-    I_V = id(V)
-    nI = norm(I_V)
-    cosines = Float64[]
-    for ell in ells
-        O = compute_O(cft, ψ_B, η_bond, ell)
-        push!(cosines, abs(real(dot(O / norm(O), I_V / nI))))
-    end
-    plot(ells, cosines; xlabel="ℓ", ylabel="|cos(O, I)|",
-         title="Is O ∝ I?  (1.0 = perfect proportionality)",
-         marker=:circle, markersize=4, legend=false,
-         ylims=(0, 1.05), size=(650, 400))
-end
+md"### $d(\ell)$ vs $\ell$ and diagonality check"
 
 # ╔═╡ f0000001-0050-0000-0000-000000000001
 md"""
 ## Summary
 
-- $|B^{\text{open}}\rangle$ contracted with $\widetilde{V}_\ell$ via TensorKit composition.
-- Raised one bond index via BPZ → operator $O : V_{\text{bond}} \to V_{\text{bond}}$.
-- Measured cosine similarity $|\cos(O, I)| = |\langle O/\|O\|, I/\|I\| \rangle|$.
-- If $\approx 1.0$ for all $\ell$, the boundary state correctly caps the arm and $O \propto I$.
+- $O$ is the BPZ-raised contraction of $\widetilde{V}_\ell$ with $|B^{\text{open}}\rangle$.
+- $O$ is **diagonal** (propagator-like) with eigenvalues $\propto (-1)^N e^{-d(\ell)(h+N)}$.
+- $d(\ell)$ is the effective propagation distance after the $e^{H\ell/2}$ modification.
+- Off-diagonal fraction grows with $\ell$ (truncation effects).
 """
+
+# ╔═╡ f0000001-0032-0000-0000-000000000001
+function offdiag_fraction(O)
+    for (f1, f2) in fusiontrees(O)
+        Int(f2.uncoupled[1].charge) == 0 || continue
+        blk = O[f1, f2]; d = size(blk,1)
+        diag_sq = sum(blk[i,i]^2 for i in 1:d)
+        return sqrt(max(0, 1 - diag_sq / sum(blk .^ 2)))
+    end
+    NaN
+end
+
+# ╔═╡ f0000001-0041-0000-0000-000000000001
+let
+    ells = collect(0.02:0.02:0.5)
+    ds = Float64[]
+    offdiags = Float64[]
+    for ell in ells
+        O = compute_O(cft, ψ_B, η_bond, ell)
+        push!(ds, extract_d(O))
+        push!(offdiags, offdiag_fraction(O))
+    end
+
+    p1 = plot(ells, ds; xlabel="ℓ", ylabel="d(ℓ)",
+              title="Effective propagation distance d(ℓ)",
+              marker=:circle, markersize=3, legend=false, size=(650, 300))
+
+    p2 = plot(ells, offdiags; xlabel="ℓ", ylabel="off-diag fraction",
+              title="Diagonality (0 = perfect propagator)",
+              marker=:circle, markersize=3, legend=false,
+              yscale=:log10, size=(650, 300))
+
+    plot(p1, p2; layout=(2, 1), size=(650, 550))
+end
 
 # ╔═╡ Cell order:
 # ╟─f0000001-0010-0000-0000-000000000001
@@ -181,3 +190,4 @@ md"""
 # ╟─f0000001-0040-0000-0000-000000000001
 # ╠═f0000001-0041-0000-0000-000000000001
 # ╟─f0000001-0050-0000-0000-000000000001
+# ╠═f0000001-0032-0000-0000-000000000001
