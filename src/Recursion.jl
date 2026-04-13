@@ -58,17 +58,81 @@ function _build_vertex(cft::CompactBosonCFT, geom::Geometry, neumann::NeumannDat
 end
 
 """
+    VertexArray
+
+Dense array for vertex entries, indexed by (n_T, n_L, n_R, αT, αL, αR).
+Replaces Dict{NTuple{6,Int}, Float64} for O(1) access with no hashing.
+
+Memory layout: a flat Vector{Float64} with one contiguous block per valid
+charge triple (n_T, n_L, n_R). An offset table maps each triple to its
+base index. Within each block, entries are stored in row-major order:
+  flat_index = base + (αT-1)*d_L*d_R + (αL-1)*d_R + (αR-1) + 1
+
+Pre-allocated with zeros, so unwritten entries return 0.0 (no need for
+`get(raw, key, 0.0)` — just index directly).
+"""
+struct VertexArray
+    data::Vector{Float64}
+    # Offset table: 3D array indexed by (n_T+n_off, n_L+n_off, n_R+n_off)
+    # Value = base offset into data (0 = invalid triple).
+    offsets::Array{Int, 3}
+    # Sector dimensions: same 3D indexing → (d_T, d_L, d_R)
+    dims::Array{NTuple{3,Int}, 3}
+    n_off::Int  # offset to make sector indices positive
+end
+
+@inline function Base.getindex(va::VertexArray, n_T::Int, n_L::Int, n_R::Int,
+                               αT::Int, αL::Int, αR::Int)
+    @inbounds begin
+        off = va.offsets[n_T + va.n_off, n_L + va.n_off, n_R + va.n_off]
+        off == 0 && return 0.0
+        d_T, d_L, d_R = va.dims[n_T + va.n_off, n_L + va.n_off, n_R + va.n_off]
+        va.data[off + (αT-1)*d_L*d_R + (αL-1)*d_R + αR]
+    end
+end
+
+@inline function Base.setindex!(va::VertexArray, val::Float64, n_T::Int, n_L::Int, n_R::Int,
+                                αT::Int, αL::Int, αR::Int)
+    @inbounds begin
+        off = va.offsets[n_T + va.n_off, n_L + va.n_off, n_R + va.n_off]
+        d_T, d_L, d_R = va.dims[n_T + va.n_off, n_L + va.n_off, n_R + va.n_off]
+        va.data[off + (αT-1)*d_L*d_R + (αL-1)*d_R + αR] = val
+    end
+end
+
+function _build_vertex_array(basis_bond::FockBasis, basis_phys::FockBasis)
+    sectors_bond = sort(collect(keys(basis_bond.states)))
+    sectors_phys = sort(collect(keys(basis_phys.states)))
+    n_min = min(minimum(sectors_bond), minimum(sectors_phys))
+    n_max = max(maximum(sectors_bond), maximum(sectors_phys))
+    n_off = 1 - n_min  # shift so that index 1 corresponds to n_min
+    n_range = n_max - n_min + 1
+
+    offsets = zeros(Int, n_range, n_range, n_range)
+    dims = fill((0,0,0), n_range, n_range, n_range)
+    total = 0
+    for n_L in sectors_bond, n_R in sectors_bond
+        n_T = -(n_L + n_R)
+        n_T in sectors_phys || continue
+        d_T = length(basis_phys.states[n_T])
+        d_L = length(basis_bond.states[n_L])
+        d_R = length(basis_bond.states[n_R])
+        offsets[n_T + n_off, n_L + n_off, n_R + n_off] = total
+        dims[n_T + n_off, n_L + n_off, n_R + n_off] = (d_T, d_L, d_R)
+        total += d_T * d_L * d_R
+    end
+    VertexArray(zeros(Float64, total), offsets, dims, n_off)
+end
+
+"""
 Compute all vertex entries by sweeping total level.
-Returns a dict keyed by (n_T, n_L, n_R, α_T, α_L, α_R) → value.
-Here α_i is the 1-based index of the state within sector n_i.
+Uses a dense VertexArray for O(1) lookups (no Dict hashing).
 """
 function _compute_vertex_raw(basis_bond::FockBasis, basis_phys::FockBasis,
                              geom::Geometry, neumann::NeumannData,
                              J_bond, J_phys, J_bond_sp, J_phys_sp, R::Float64)
-    raw = Dict{NTuple{6, Int}, Float64}()
+    raw = _build_vertex_array(basis_bond, basis_phys)
 
-    # Iterate over all valid (n_L, n_R, n_T) triples (with n_L + n_R + n_T = 0)
-    # and all state indices, sweeping by total level
     sectors_bond = collect(keys(basis_bond.states))
     sectors_phys = collect(keys(basis_phys.states))
 
@@ -97,15 +161,15 @@ function _compute_vertex_raw(basis_bond::FockBasis, basis_phys::FockBasis,
         N_tot = total_level(t)
         N_tot > 0 && break
         n_T, n_L, n_R, _, _, _ = t
-        raw[t] = primary_vertex(n_L, n_R, n_T, geom, R)
+        raw[n_T, n_L, n_R, t[4], t[5], t[6]] = primary_vertex(n_L, n_R, n_T, geom, R)
     end
 
     # Recursion for level ≥ 1
     for t in triples
         N_tot = total_level(t)
         N_tot == 0 && continue
-        raw[t] = _recurse_entry(t, raw, basis_bond, basis_phys,
-                                neumann, J_bond_sp, J_phys_sp)
+        raw[t[1], t[2], t[3], t[4], t[5], t[6]] = _recurse_entry(
+            t, raw, basis_bond, basis_phys, neumann, J_bond_sp, J_phys_sp)
     end
 
     raw
@@ -117,7 +181,7 @@ Pick an arm with a nonempty partition, apply J_{-m} recursion,
 reducing to already-computed lower-level entries.
 """
 function _recurse_entry(t::NTuple{6, Int},
-                        raw::Dict{NTuple{6, Int}, Float64},
+                        raw::VertexArray,
                         basis_bond::FockBasis, basis_phys::FockBasis,
                         neumann::NeumannData,
                         J_bond_sp, J_phys_sp)
@@ -210,21 +274,21 @@ Returns: J_k coefficient · V(resulting state), or 0 if J_k annihilates the stat
 """
 function _apply_Jk_on_arm_sparse(t::NTuple{6, Int}, j::Symbol, k::Int,
                                   J_bond_sp, J_phys_sp,
-                                  raw::Dict{NTuple{6, Int}, Float64})
+                                  raw::VertexArray)
     n_T, n_L, n_R, αT, αL, αR = t
 
     if j == :L
         (target, coeff) = J_bond_sp[n_L][k + 1][αL]
         target == 0 && return 0.0
-        return coeff * get(raw, (n_T, n_L, n_R, αT, target, αR), 0.0)
+        return coeff * raw[n_T, n_L, n_R, αT, target, αR]
     elseif j == :R
         (target, coeff) = J_bond_sp[n_R][k + 1][αR]
         target == 0 && return 0.0
-        return coeff * get(raw, (n_T, n_L, n_R, αT, αL, target), 0.0)
+        return coeff * raw[n_T, n_L, n_R, αT, αL, target]
     else # :T
         (target, coeff) = J_phys_sp[n_T][k + 1][αT]
         target == 0 && return 0.0
-        return coeff * get(raw, (n_T, n_L, n_R, target, αL, αR), 0.0)
+        return coeff * raw[n_T, n_L, n_R, target, αL, αR]
     end
 end
 
@@ -232,7 +296,7 @@ end
 Assemble the raw vertex values into a TensorMap:
 vertex : ℂ ← V_phys ⊗ V_bond ⊗ V_bond  (trilinear form)
 """
-function _assemble_vertex(raw::Dict{NTuple{6, Int}, Float64},
+function _assemble_vertex(raw::VertexArray,
                           basis_bond::FockBasis, basis_phys::FockBasis)
     V_b = basis_bond.V
     V_p = basis_phys.V
@@ -240,7 +304,6 @@ function _assemble_vertex(raw::Dict{NTuple{6, Int}, Float64},
     vertex = zeros(Float64, one(V_p), V_p ⊗ V_b ⊗ V_b)
 
     for (f₁, f₂) in fusiontrees(vertex)
-        # f₂ has 3 domain legs: V_phys, V_bond, V_bond
         n_T = Int(f₂.uncoupled[1].charge)
         n_L = Int(f₂.uncoupled[2].charge)
         n_R = Int(f₂.uncoupled[3].charge)
@@ -250,12 +313,8 @@ function _assemble_vertex(raw::Dict{NTuple{6, Int}, Float64},
          haskey(basis_bond.states, n_R)) || continue
 
         blk = vertex[f₁, f₂]
-        # blk is 3-dimensional: (d_T, d_L, d_R)
         for αT in 1:size(blk, 1), αL in 1:size(blk, 2), αR in 1:size(blk, 3)
-            key = (n_T, n_L, n_R, αT, αL, αR)
-            if haskey(raw, key)
-                blk[αT, αL, αR] = raw[key]
-            end
+            blk[αT, αL, αR] = raw[n_T, n_L, n_R, αT, αL, αR]
         end
         vertex[f₁, f₂] = blk
     end
