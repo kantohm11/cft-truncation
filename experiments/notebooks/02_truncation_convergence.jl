@@ -97,12 +97,18 @@ end
 
 # ╔═╡ c0000001-0022-0000-0000-000000000001
 let
+    # x = h_trunc, curves per ℓ (select a few representative ℓ values)
+    ell_sel = [0.1, 0.2, 0.3, 0.5, 0.8, 1.0, 1.5]
     fig = Figure(size=(700, 400))
-    ax = Axis(fig[1, 1]; xlabel="ℓ", ylabel="r(h_trunc)",
-              title="Exp 1: Full 3-leg convergence ratio")
-    colors = Makie.wong_colors()
-    for (j, ht) in enumerate(h_truncs)
-        lines!(ax, ells, exp1_data[:, j]; label="h_trunc=$(Int(ht))", color=colors[j])
+    ax = Axis(fig[1, 1]; xlabel="h_trunc", ylabel="r",
+              title="Exp 1: Full 3-leg convergence ratio",
+              xticks=h_truncs)
+    cmap = cgrad(:viridis, length(ell_sel); categorical=true)
+    for (k, l) in enumerate(ell_sel)
+        idx = findfirst(==(l), ells)
+        idx === nothing && continue
+        scatterlines!(ax, h_truncs, exp1_data[idx, :]; label="ℓ=$l",
+                      color=cmap[k], markersize=8)
     end
     axislegend(ax; position=:rb)
     fig
@@ -136,22 +142,29 @@ end
 # ╔═╡ c0000001-0033-0000-0000-000000000001
 let
     h_psis = sort(collect(keys(exp2_data)))
+    ell_sel = [0.1, 0.2, 0.3, 0.5, 0.8, 1.0]
     n_panels = length(h_psis)
     ncols = min(3, n_panels)
     nrows = cld(n_panels, ncols)
-    fig = Figure(size=(300 * ncols, 250 * nrows))
-    colors = Makie.wong_colors()
+    fig = Figure(size=(300 * ncols, 280 * nrows))
+    cmap = cgrad(:viridis, length(ell_sel); categorical=true)
     for (idx, hp) in enumerate(h_psis)
         r, c = fldmod1(idx, ncols)
-        ax = Axis(fig[r, c]; xlabel="ℓ", ylabel="r",
-                  title="h_ψ=$(round(hp; digits=1))")
-        for (j, ht) in enumerate(h_truncs)
-            lines!(ax, ells, exp2_data[hp][:, j]; color=colors[j],
-                   label=j == 1 ? "h_tr=$(Int(ht))" : nothing)
+        ax = Axis(fig[r, c]; xlabel="h_trunc", ylabel="r",
+                  title="h_ψ=$(round(hp; digits=1))", xticks=h_truncs)
+        for (k, l) in enumerate(ell_sel)
+            i = findfirst(==(l), ells)
+            i === nothing && continue
+            scatterlines!(ax, h_truncs, exp2_data[hp][i, :]; color=cmap[k], markersize=6)
         end
         ylims!(ax, 0, 1.05)
     end
-    Label(fig[0, :], "Exp 2: Contract ψ_T, 2-leg convergence"; fontsize=16)
+    # Shared legend for ℓ curves
+    legend_entries = [LineElement(color=cmap[k]) for k in eachindex(ell_sel)]
+    legend_labels = ["ℓ=$(l)" for l in ell_sel]
+    Legend(fig[nrows+1, :], legend_entries, legend_labels;
+           orientation=:horizontal, tellheight=true, tellwidth=false)
+    Label(fig[0, :], "Exp 2: Contract ψ_T, 2-leg (curves=ℓ, panels=h_ψ)"; fontsize=16)
     fig
 end
 
@@ -190,21 +203,28 @@ end
 # ╔═╡ c0000001-0043-0000-0000-000000000001
 let
     h_psis = sort(collect(keys(exp3_data)))
+    ell_sel = [0.1, 0.2, 0.3, 0.5, 0.8, 1.0]
     n_panels = length(h_psis)
     ncols = min(3, n_panels)
     nrows = cld(n_panels, ncols)
-    fig = Figure(size=(300 * ncols, 250 * nrows))
-    colors = Makie.wong_colors()
+    fig = Figure(size=(300 * ncols, 280 * nrows))
+    cmap = cgrad(:viridis, length(ell_sel); categorical=true)
     for (idx, hp) in enumerate(h_psis)
         r, c = fldmod1(idx, ncols)
-        ax = Axis(fig[r, c]; xlabel="ℓ", ylabel="r",
-                  title="h_ψ=$(round(hp; digits=1))")
-        for (j, ht) in enumerate(h_truncs)
-            lines!(ax, ells, exp3_data[hp][:, j]; color=colors[j])
+        ax = Axis(fig[r, c]; xlabel="h_trunc", ylabel="r",
+                  title="h_ψ=$(round(hp; digits=1))", xticks=h_truncs)
+        for (k, l) in enumerate(ell_sel)
+            i = findfirst(==(l), ells)
+            i === nothing && continue
+            scatterlines!(ax, h_truncs, exp3_data[hp][i, :]; color=cmap[k], markersize=6)
         end
         ylims!(ax, 0, 1.05)
     end
-    Label(fig[0, :], "Exp 3: Contract ψ_T and ψ_L, 1-leg convergence"; fontsize=16)
+    legend_entries = [LineElement(color=cmap[k]) for k in eachindex(ell_sel)]
+    legend_labels = ["ℓ=$(l)" for l in ell_sel]
+    Legend(fig[nrows+1, :], legend_entries, legend_labels;
+           orientation=:horizontal, tellheight=true, tellwidth=false)
+    Label(fig[0, :], "Exp 3: Contract ψ_T+ψ_L, 1-leg (curves=ℓ, panels=h_ψ)"; fontsize=16)
     fig
 end
 
