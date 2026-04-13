@@ -13,6 +13,7 @@ include("JMatrices.jl")
 include("BPZ.jl")
 include("PrimaryVertex.jl")
 include("CompactBoson.jl")
+include("Cache.jl")
 include("Recursion.jl")
 
 # Public API: enough for `using CFTTruncation` to give a notebook
@@ -21,6 +22,7 @@ include("Recursion.jl")
 # remain reachable via the qualified `CFTTruncation.X` form.
 export TruncationSpec, CompactBosonCFT
 export compute_vertex, vertex_sweep, charge_block, VertexData
+export set_cache_dir
 export conformal_dim
 export modified_vertex, modified_vertex_cache, build_propagator_factor
 export project_to_hcut

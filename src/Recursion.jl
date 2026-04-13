@@ -15,16 +15,41 @@ struct VertexData
 end
 
 """
-    compute_vertex(cft::CompactBosonCFT, ell::Real; series_order=20) -> VertexData
+    compute_vertex(cft::CompactBosonCFT, ell::Real; series_order=20, cache=:auto) -> VertexData
 
-Compute the T-vertex for the given fixed CFT data at the given ℓ. This is
-the primary entry point for ℓ-sweeps: build `cft` once with
-`CompactBosonCFT(; R, trunc=...)`, then call this for each ℓ.
+Compute the T-vertex for the given fixed CFT data at the given ℓ.
+
+Cache modes (requires `set_cache_dir(...)` first):
+- `:auto` (default): load from disk if cached, else compute + save.
+- `:off`: no disk IO, always compute fresh.
+- `:regenerate`: always compute fresh, overwrite cache file.
 """
-function compute_vertex(cft::CompactBosonCFT, ell::Real; series_order::Int=20)
-    geom = compute_geometry(ell, series_order)
+function compute_vertex(cft::CompactBosonCFT, ell::Real;
+                        series_order::Int=20, cache::Symbol=:auto)
+    ell_f = Float64(ell)
+    use_cache = cache != :off && _CACHE_DIR[] !== nothing
+
+    # Try loading (only in :auto mode)
+    if use_cache && cache == :auto
+        path = _cache_path(cft, ell_f, series_order)
+        if isfile(path)
+            vertex = _load_vertex(path)
+            geom = compute_geometry(ell_f, series_order)
+            neumann = compute_neumann(geom, cft.m_max)
+            return VertexData(cft, vertex, geom, neumann, ell_f)
+        end
+    end
+
+    # Compute fresh
+    geom = compute_geometry(ell_f, series_order)
     neumann = compute_neumann(geom, cft.m_max)
-    _build_vertex(cft, geom, neumann, Float64(ell))
+    vd = _build_vertex(cft, geom, neumann, ell_f)
+
+    # Save (in :auto or :regenerate mode)
+    if use_cache
+        _save_vertex(_cache_path(cft, ell_f, series_order), vd.vertex)
+    end
+    vd
 end
 
 """
@@ -40,12 +65,12 @@ function compute_vertex(cft::CompactBosonCFT, geom::Geometry, neumann::NeumannDa
 end
 
 """
-    vertex_sweep(cft::CompactBosonCFT, ells; series_order=20) -> Vector{VertexData}
+    vertex_sweep(cft::CompactBosonCFT, ells; series_order=20, cache=:auto)
 
-Convenience: compute vertices for all ℓ values, reusing the CFT data.
+Compute vertices for all ℓ values, reusing the CFT data.
 """
-function vertex_sweep(cft::CompactBosonCFT, ells; series_order::Int=20)
-    [compute_vertex(cft, ell; series_order=series_order) for ell in ells]
+function vertex_sweep(cft::CompactBosonCFT, ells; series_order::Int=20, cache::Symbol=:auto)
+    [compute_vertex(cft, ell; series_order, cache) for ell in ells]
 end
 
 # Internal: actually run the recursion and assembly given all three layers.
@@ -430,14 +455,14 @@ function modified_vertex(vd::VertexData)
 end
 
 """
-    modified_vertex_cache(cft, ells; series_order=20) -> Dict{Float64, TensorMap}
+    modified_vertex_cache(cft, ells; series_order=20, cache=:auto) -> Dict{Float64, TensorMap}
 
 Precompute and cache modified vertices for a sweep over ell values.
 Central charge c is read from cft.c.
 """
 function modified_vertex_cache(cft::CompactBosonCFT, ells;
-                               series_order::Int=20)
-    Dict(Float64(l) => modified_vertex(compute_vertex(cft, l; series_order))
+                               series_order::Int=20, cache::Symbol=:auto)
+    Dict(Float64(l) => modified_vertex(compute_vertex(cft, l; series_order, cache))
          for l in ells)
 end
 
