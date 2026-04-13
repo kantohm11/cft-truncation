@@ -333,22 +333,23 @@ end
 # ============================================================
 
 """
-    build_propagator_factor(basis::FockBasis, ell, c) -> TensorMap
+    build_propagator_factor(basis::FockBasis, ell, c) -> DiagonalTensorMap
 
 Diagonal endomorphism V -> V with eigenvalue exp(pi*ell/2*(h_n+N-c/24))
 on each basis state. This is e^{H*ell/2} where H = pi(L_0 - c/24) on
-a strip of unit width.
+a strip of unit width. Returned as a DiagonalTensorMap for efficient
+storage and composition.
 """
 function build_propagator_factor(basis::FockBasis, ell::Float64, c::Float64)
-    D = zeros(Float64, basis.V, basis.V)
+    D = TensorKit.DiagonalTensorMap(undef, basis.V)
     for (f1, f2) in fusiontrees(D)
         n = Int(f2.uncoupled[1].charge)
         haskey(basis.levels, n) || continue
-        blk = D[f1, f2]
-        for a in axes(blk, 1)
-            blk[a, a] = exp(pi * ell / 2 * (conformal_dim(basis, n, a) - c / 24))
+        blk = D[f1, f2]  # Diagonal matrix view
+        d = blk.diag      # the underlying diagonal vector
+        for a in 1:length(d)
+            d[a] = exp(pi * ell / 2 * (conformal_dim(basis, n, a) - c / 24))
         end
-        D[f1, f2] = blk
     end
     D
 end
