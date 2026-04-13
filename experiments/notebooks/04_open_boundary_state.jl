@@ -128,20 +128,35 @@ Check $\langle \hat\mu | (J_k - J_{-k}) |B\rangle \approx 0$ for all $\mu$, $k$.
 """
 
 # ╔═╡ e0000001-0031-0000-0000-000000000001
+"""
+Verify (J_k - J_{-k})|B⟩ = 0 on the safe subspace (level ≤ h_max - k).
+
+The gluing condition holds exactly only on the safe subspace. At the
+truncation boundary (level > h_max - k), J_{-k} creates states that
+escape the truncated basis, so the balance breaks. This is a truncation
+artifact, not a bug in the coefficients.
+"""
 function verify_gluing(basis, sector_n, coeffs; k_max=nothing)
-    J_dense, _ = CFTTruncation.build_J_matrices(basis, k_max === nothing ? Int(h_max_val) + 2 : k_max)
+    km = k_max === nothing ? Int(h_max_val) + 2 : k_max
+    J_dense, _ = CFTTruncation.build_J_matrices(basis, km)
     Jk_mats = J_dense[sector_n]
-    Jmk_mats = [CFTTruncation.build_creation_matrix(basis, sector_n, k) for k in 1:length(Jk_mats)-1]
-    max_violation = 0.0
-    d = length(coeffs)
+    Jmk_mats = [CFTTruncation.build_creation_matrix(basis, sector_n, k) for k in 1:min(km, length(Jk_mats)-1)]
+    max_safe = 0.0
+    max_unsafe = 0.0
     for k in 1:length(Jmk_mats)
-        # (J_k - J_{-k})|B⟩ should be zero
-        Jk = Jk_mats[k + 1]   # k=0 is index 1, k=1 is index 2, etc.
+        Jk = Jk_mats[k + 1]
         Jmk = Jmk_mats[k]
         diff_vec = (Jk - Jmk) * coeffs
-        max_violation = max(max_violation, maximum(abs, diff_vec))
+        for (i, d) in enumerate(diff_vec)
+            level = basis.levels[sector_n][i]
+            if level <= basis.h_max - k
+                max_safe = max(max_safe, abs(d))
+            else
+                max_unsafe = max(max_unsafe, abs(d))
+            end
+        end
     end
-    max_violation
+    (safe=max_safe, unsafe=max_unsafe)
 end
 
 # ╔═╡ e0000001-0032-0000-0000-000000000001
@@ -150,13 +165,14 @@ let
     for n in sort(collect(keys(basis.states)))
         coeffs = open_boundary_coeffs_A(basis, n)
         viol = verify_gluing(basis, n, coeffs)
-        push!(results, (n=n, dim=length(coeffs), max_violation=viol,
-                        nonzero=count(!iszero, coeffs)))
+        push!(results, (n=n, dim=length(coeffs),
+                        nonzero=count(!iszero, coeffs),
+                        safe=viol.safe, unsafe=viol.unsafe))
     end
-    lines = ["  sector n  dim  nonzero  max |⟨μ|(J_k-J_{-k})|B⟩|"]
-    push!(lines, repeat("-", 55))
+    lines = ["  sector n  dim  nonzero  safe (level≤h-k)   unsafe (boundary)"]
+    push!(lines, repeat("-", 65))
     for r in results
-        push!(lines, "  $(rpad(r.n, 10)) $(rpad(r.dim, 5)) $(rpad(r.nonzero, 9)) $(round(r.max_violation; sigdigits=3))")
+        push!(lines, "  $(rpad(r.n, 10)) $(rpad(r.dim, 5)) $(rpad(r.nonzero, 9)) $(rpad(round(r.safe; sigdigits=3), 18)) $(round(r.unsafe; sigdigits=3))")
     end
     Base.Text(join(lines, "\n"))
 end
