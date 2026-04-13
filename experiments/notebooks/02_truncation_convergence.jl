@@ -17,7 +17,7 @@ using CFTTruncation
 using TensorKit: norm
 
 # ╔═╡ c0000001-0004-0000-0000-000000000001
-using CairoMakie
+using Plots
 
 # ╔═╡ c0000001-0005-0000-0000-000000000001
 using Random
@@ -98,21 +98,17 @@ end
 
 # ╔═╡ c0000001-0022-0000-0000-000000000001
 let
-    # x = h_trunc, curves per ℓ (select a few representative ℓ values)
     ell_sel = [0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5]
-    fig = Figure(size=(700, 400))
-    ax = Axis(fig[1, 1]; xlabel="h_trunc", ylabel="r",
-              title="Exp 1: Full 3-leg convergence ratio",
-              xticks=h_truncs)
-    cmap = cgrad(:viridis, length(ell_sel); categorical=true)
-    for (k, l) in enumerate(ell_sel)
+    p = plot(; xlabel="h_trunc", ylabel="r",
+             title="Exp 1: Full 3-leg convergence ratio",
+             legend=:bottomright, size=(700, 400))
+    for l in ell_sel
         idx = findfirst(==(l), ells)
         idx === nothing && continue
-        scatterlines!(ax, h_truncs, exp1_data[idx, :]; label="ℓ=$l",
-                      color=cmap[k], markersize=8)
+        plot!(p, h_truncs, exp1_data[idx, :]; label="ℓ=$l",
+              marker=:circle, markersize=4)
     end
-    axislegend(ax; position=:rb)
-    fig
+    p
 end
 
 # ╔═╡ c0000001-0030-0000-0000-000000000001
@@ -144,29 +140,22 @@ end
 let
     h_psis = sort(collect(keys(exp2_data)))
     ell_sel = [0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5]
-    n_panels = length(h_psis)
-    ncols = min(3, n_panels)
-    nrows = cld(n_panels, ncols)
-    fig = Figure(size=(300 * ncols, 280 * nrows))
-    cmap = cgrad(:viridis, length(ell_sel); categorical=true)
+    ncols = min(3, length(h_psis))
+    nrows = cld(length(h_psis), ncols)
+    plts = []
     for (idx, hp) in enumerate(h_psis)
-        r, c = fldmod1(idx, ncols)
-        ax = Axis(fig[r, c]; xlabel="h_trunc", ylabel="r",
-                  title="h_ψ=$(round(hp; digits=1))", xticks=h_truncs)
-        for (k, l) in enumerate(ell_sel)
+        p = plot(; xlabel="h_trunc", ylabel="r",
+                 title="h_ψ=$(round(hp; digits=1))", ylims=(0, 1.05),
+                 legend=false)
+        for l in ell_sel
             i = findfirst(==(l), ells)
             i === nothing && continue
-            scatterlines!(ax, h_truncs, exp2_data[hp][i, :]; color=cmap[k], markersize=6)
+            plot!(p, h_truncs, exp2_data[hp][i, :]; marker=:circle, markersize=3, label="ℓ=$l")
         end
-        ylims!(ax, 0, 1.05)
+        push!(plts, p)
     end
-    # Shared legend for ℓ curves
-    legend_entries = [LineElement(color=cmap[k]) for k in eachindex(ell_sel)]
-    legend_labels = ["ℓ=$(l)" for l in ell_sel]
-    Legend(fig[nrows+1, :], legend_entries, legend_labels;
-           orientation=:horizontal, tellheight=true, tellwidth=false)
-    Label(fig[0, :], "Exp 2: Contract ψ_T, 2-leg (curves=ℓ, panels=h_ψ)"; fontsize=16)
-    fig
+    plot(plts...; layout=(nrows, ncols), size=(300*ncols, 250*nrows),
+         plot_title="Exp 2: Contract ψ_T, 2-leg")
 end
 
 # ╔═╡ c0000001-0040-0000-0000-000000000001
@@ -205,28 +194,22 @@ end
 let
     h_psis = sort(collect(keys(exp3_data)))
     ell_sel = [0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5]
-    n_panels = length(h_psis)
-    ncols = min(3, n_panels)
-    nrows = cld(n_panels, ncols)
-    fig = Figure(size=(300 * ncols, 280 * nrows))
-    cmap = cgrad(:viridis, length(ell_sel); categorical=true)
+    ncols = min(3, length(h_psis))
+    nrows = cld(length(h_psis), ncols)
+    plts = []
     for (idx, hp) in enumerate(h_psis)
-        r, c = fldmod1(idx, ncols)
-        ax = Axis(fig[r, c]; xlabel="h_trunc", ylabel="r",
-                  title="h_ψ=$(round(hp; digits=1))", xticks=h_truncs)
-        for (k, l) in enumerate(ell_sel)
+        p = plot(; xlabel="h_trunc", ylabel="r",
+                 title="h_ψ=$(round(hp; digits=1))", ylims=(0, 1.05),
+                 legend=false)
+        for l in ell_sel
             i = findfirst(==(l), ells)
             i === nothing && continue
-            scatterlines!(ax, h_truncs, exp3_data[hp][i, :]; color=cmap[k], markersize=6)
+            plot!(p, h_truncs, exp3_data[hp][i, :]; marker=:circle, markersize=3, label="ℓ=$l")
         end
-        ylims!(ax, 0, 1.05)
+        push!(plts, p)
     end
-    legend_entries = [LineElement(color=cmap[k]) for k in eachindex(ell_sel)]
-    legend_labels = ["ℓ=$(l)" for l in ell_sel]
-    Legend(fig[nrows+1, :], legend_entries, legend_labels;
-           orientation=:horizontal, tellheight=true, tellwidth=false)
-    Label(fig[0, :], "Exp 3: Contract ψ_T+ψ_L, 1-leg (curves=ℓ, panels=h_ψ)"; fontsize=16)
-    fig
+    plot(plts...; layout=(nrows, ncols), size=(300*ncols, 250*nrows),
+         plot_title="Exp 3: Contract ψ_T+ψ_L, 1-leg")
 end
 
 # ╔═╡ c0000001-0050-0000-0000-000000000001

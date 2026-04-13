@@ -17,7 +17,7 @@ using CFTTruncation
 using TensorKit: dim
 
 # ╔═╡ d0000001-0004-0000-0000-000000000001
-using CairoMakie
+using Plots
 
 # ╔═╡ d0000001-0010-0000-0000-000000000001
 md"""
@@ -77,12 +77,10 @@ md"### Time vs h_max"
 let
     hms = [r.h_max for r in timing_data]
     ts = [r.time_s for r in timing_data]
-    fig = Figure(size=(600, 400))
-    ax = Axis(fig[1, 1]; xlabel="h_max", ylabel="time (s)",
-              title="compute_vertex time vs h_max (R=1, ℓ=1)",
-              yscale=log10)
-    scatterlines!(ax, hms, ts; markersize=10)
-    fig
+    plot(hms, ts; xlabel="h_max", ylabel="time (s)",
+         title="compute_vertex time vs h_max (R=1, ℓ=1)",
+         yscale=:log10, marker=:circle, markersize=6, legend=false,
+         size=(600, 400))
 end
 
 # ╔═╡ d0000001-0030-0000-0000-000000000001
@@ -92,21 +90,18 @@ md"### Time vs dim(V)"
 let
     ds = [Float64(r.dim_V) for r in timing_data]
     ts = [r.time_s for r in timing_data]
-    fig = Figure(size=(600, 400))
-    ax = Axis(fig[1, 1]; xlabel="dim(V)", ylabel="time (s)",
-              title="compute_vertex time vs dim(V)",
-              xscale=log10, yscale=log10)
-    scatterlines!(ax, ds, ts; markersize=10)
-    # Fit power law: log(t) = a + b*log(d)
+    p = plot(ds, ts; xlabel="dim(V)", ylabel="time (s)",
+             title="compute_vertex time vs dim(V)",
+             xscale=:log10, yscale=:log10, marker=:circle, markersize=6,
+             legend=false, size=(600, 400))
     if length(ds) >= 3
         logd = log.(ds)
         logt = log.(ts)
         b = (length(logd) * sum(logd .* logt) - sum(logd) * sum(logt)) /
             (length(logd) * sum(logd .^ 2) - sum(logd)^2)
-        text!(ax, ds[end], ts[end]; text="slope ≈ $(round(b; digits=1))",
-              align=(:right, :bottom), fontsize=14)
+        annotate!(p, [(ds[end], ts[end], Plots.text("slope ≈ $(round(b; digits=1))", :right, 10))])
     end
-    fig
+    p
 end
 
 # ╔═╡ d0000001-0040-0000-0000-000000000001
