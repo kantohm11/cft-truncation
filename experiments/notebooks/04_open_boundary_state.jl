@@ -75,27 +75,30 @@ end
 """
 Compute open boundary state coefficients for all states in sector n.
 Returns a Vector{Float64} indexed by basis state index.
+
+For Neumann BC, the open boundary state is purely in n=0 (the zero-mode
+integral over the strip projects onto zero momentum). For n ≠ 0, all
+coefficients are zero. Within n=0 (the Virasoro vacuum module), the
+coefficients are determined by the gluing condition.
 """
 function open_boundary_coeffs_A(basis, sector_n::Int)
     parts = basis.states[sector_n]
     coeffs = zeros(Float64, length(parts))
+    # Neumann BC: only n=0 contributes
+    sector_n != 0 && return coeffs
     for (i, lambda) in enumerate(parts)
-        # Product over distinct parts
         b = 1.0
         if isempty(lambda)
             b = 1.0
         else
-            # Count multiplicities of each distinct part
-            k = lambda[1]
-            mk = 1
+            k = lambda[1]; mk = 1
             for j in 2:length(lambda)
                 if lambda[j] == k
                     mk += 1
                 else
                     b *= boundary_coeff_single_mode(mk)
                     b == 0.0 && break
-                    k = lambda[j]
-                    mk = 1
+                    k = lambda[j]; mk = 1
                 end
             end
             b *= boundary_coeff_single_mode(mk)
