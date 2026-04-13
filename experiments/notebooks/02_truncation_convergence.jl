@@ -41,6 +41,8 @@ begin
     h_truncs = [2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
     ells = collect(0.025:0.025:0.5)  # dense grid, ℓ ≤ 0.5 only
     Random.seed!(42)
+    # Enable disk caching so re-runs (and HTML export) are fast
+    set_cache_dir(joinpath(@__DIR__, "..", "..", "experiments", "results", "cache"))
 end
 
 # ╔═╡ c0000001-0012-0000-0000-000000000001
