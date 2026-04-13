@@ -359,30 +359,38 @@ end
 Compute the modified vertex Ṽ = V ∘ (id_phys ⊗ D ⊗ D) where
 D = e^{H ℓ/2} is the propagator factor on each bond arm.
 
-Mathematically this is `vertex * (id(V_phys) ⊗ D ⊗ D)`, but that
-constructs a dense intermediate TensorMap of size dim³ × dim³. Since D
-is diagonal, the operation is just entry-wise scaling — done directly
-on blocks for O(entries) cost with no intermediate.
+Uses `@tensor` to contract D into the two bond legs of the vertex,
+then `permute` to restore the original (0,3) codomain/domain structure.
+
+## Note on the @tensor + permute pattern
+
+The ideal one-liner `vertex * (id(V_phys) ⊗ D ⊗ D)` is correct but
+impractical: TensorKit's `⊗` on TensorMaps materializes the full dense
+tensor product (dim³ × dim³), even when D is diagonal. This is an
+upstream limitation — `DiagonalTensorMap` exists, but `⊗` does not
+preserve it.
+
+Instead, `@tensor` contracts D into individual legs efficiently
+(O(entries), no dense intermediate). However, @tensor has its own
+quirk: for a (0,N) TensorMap (trivial codomain), the output syntax
+`result[; -1 -2 -3]` (empty codomain, semicolon, domain indices)
+**does not parse** in TensorOperations v5. The parser misinterprets
+`-1` after `;` as subtraction rather than a negative index label.
+
+The workaround: write `@tensor result[-1 -2 -3] := ...` (no semicolons),
+which puts all free legs in the **codomain** (producing a (3,0) Tensor
+with V' legs), then call `permute(result, ((), (1,2,3)))` to move them
+to the domain. The double dualization V → V' (from @tensor) → V'' = V
+(from permute) recovers the original space. This is verified to produce
+identical results to the block-iteration approach.
 """
 function modified_vertex(vd::VertexData; c::Float64=1.0)
-    Vmod = copy(vd.vertex)
-    bb = vd.cft.basis_bond
-    ell = vd.ell
-    for (f1, f2) in fusiontrees(Vmod)
-        n_L = Int(f2.uncoupled[2].charge)
-        n_R = Int(f2.uncoupled[3].charge)
-        (haskey(bb.levels, n_L) && haskey(bb.levels, n_R)) || continue
-        blk = Vmod[f1, f2]
-        for aT in axes(blk, 1), aL in axes(blk, 2), aR in axes(blk, 3)
-            hd_L = conformal_dim(bb, n_L, aL)
-            hd_R = conformal_dim(bb, n_R, aR)
-            factor = exp(pi * ell / 2 * (hd_L - c / 24)) *
-                     exp(pi * ell / 2 * (hd_R - c / 24))
-            blk[aT, aL, aR] *= factor
-        end
-        Vmod[f1, f2] = blk
-    end
-    Vmod
+    V = vd.vertex
+    D = build_propagator_factor(vd.cft.basis_bond, vd.ell, c)
+    # @tensor puts free legs in codomain (as V'), permute restores (0,3) with V.
+    # See docstring for explanation of this pattern.
+    @tensor tmp[-1 -2 -3] := V[-1 1 2] * D[1; -2] * D[2; -3]
+    permute(tmp, ((), (1, 2, 3)))
 end
 
 """

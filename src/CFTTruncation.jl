@@ -1,6 +1,7 @@
 module CFTTruncation
 
 using TensorKit
+using TensorKit: @tensor
 using LinearAlgebra
 
 include("TruncLaurent.jl")
