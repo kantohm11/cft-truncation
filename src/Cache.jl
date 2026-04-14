@@ -24,8 +24,10 @@ using JLD2
 #   - FockBasis state ordering or normalization (FockSpace.jl)
 #   - modified_vertex propagator factor formula
 # ----------------------------------------------------------------
-const CACHE_VERSION = "v1_initial"
+const CACHE_VERSION = "v2_rho0"
 # History:
+#   v2_rho0    — ρ₀ computed from SC map geometry (corner matching),
+#                BPZ sign fixed to U(1) convention ∏(-1)^{k+1}.
 #   v1_initial — first version, after σ convention fix, sparse J_k,
 #                VertexArray optimization, @tensor modified_vertex.
 

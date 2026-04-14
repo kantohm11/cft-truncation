@@ -63,12 +63,14 @@ function _compute_arm(sc::SCParams, label::Symbol, order::Int)
     # ρ coefficients (indices 0, 1, 2, ...)
     # ρ^(n) = a^(n-1)/n for n ≥ 1, where a^(k) = fprime_reg[k]
     rho_coeffs = zeros(ComplexF64, prec)
-    # ρ^(0) = integration constant; determined later or set to 0 for now
-    # It enters as an overall phase/shift in f_i — absorbed into α
-    rho_coeffs[1] = zero(ComplexF64)  # ρ₀ placeholder
     for n in 1:prec-1
         rho_coeffs[n + 1] = fprime_reg[n - 1] / n
     end
+
+    # ρ₀: integration constant of the SC map f(z) = ∫ f'(z) dz + C.
+    # Determined geometrically by matching f at the corner z = p from
+    # different arm series (all must agree since f is a single function).
+    rho_coeffs[1] = _compute_rho0(sc, label)
 
     # Step 3: Build f_i(z) = exp(-π σ* / w · f(z))
     # f(x+ζ) = (wσ/π) log(ζ) + ρ(ζ)
@@ -96,7 +98,6 @@ function _compute_arm(sc::SCParams, label::Symbol, order::Int)
     exp_input = TruncLaurent(1, exp_input_coeffs, prec)
     exp_part = exp_series(exp_input)
 
-    # α = exp(-πσ*/w · ρ₀) · 1 (the ρ₀ = 0 choice means α_factor = 1)
     α_factor = exp(coeff_factor * rho_coeffs[1])
 
     # f_i(ζ) = α_factor · ζ · exp_part(ζ)
@@ -110,6 +111,98 @@ function _compute_arm(sc::SCParams, label::Symbol, order::Int)
     g_series = series_revert(f_series)
 
     ArmData(label, x, w, σ, α, f_series, g_series, fprime_laurent)
+end
+
+"""
+    _compute_rho0(sc::SCParams, label::Symbol) -> ComplexF64
+
+Compute the integration constant ρ₀ for arm `label`. The SC map
+f(z) = ∫f'(z)dz has one free additive constant C. The ρ₀ for each arm
+is determined by requiring all arm expansions to agree at the corners z = ±p.
+
+Convention: mouth at corner. R corner at σ = 0, L corner at σ = ℓ.
+For centered plots: post-shift by -ℓ/2.
+
+- R arm: ρ₀ is real, from numerical integration targeting Re(f(p)) = 0 (mouth at corner).
+- L arm: ρ₀ = ρ₀^R + i. The Z₂ gives ρ₀^L_Z2 = ρ₀^R + ℓ + i, but the
+  L arm local coordinate uses ξ_L = exp(π(f - ℓ)) to shift its mouth to the
+  L corner (σ = ℓ). The ℓ is absorbed, leaving ρ₀^L = ρ₀^R + i.
+  Result: |α_L| = |α_R| (symmetric).
+- T arm: ρ₀ is complex, from matching f_T(p) = f_R(p) = i.
+"""
+function _compute_rho0(sc::SCParams, label::Symbol)
+    if label == :R
+        return ComplexF64(_compute_rho0_R(sc))
+    elseif label == :L
+        # ξ_L = exp(π(f - ℓ)) shifts mouth to L corner.
+        # Effective ρ₀^L = ρ₀^R + i (the ℓ from Z₂ is absorbed by the shift).
+        return ComplexF64(_compute_rho0_R(sc)) + im
+    else
+        return _compute_rho0_T(sc)
+    end
+end
+
+"""
+Compute ρ₀ for the R arm by numerical integration with singularity subtraction.
+
+Integrates g(z) = f'(z) - (1/π)/(z-1) on [p, 1]. This function is smooth
+(the pole of f' at z = 1 is subtracted analytically). Then:
+
+    ρ₀^R = ∫_p^1 g(z) dz − (1/π) log(1−p)
+
+This places the mouth at the R corner: Re(f(p)) = 0. Result is real.
+"""
+function _compute_rho0_R(sc::SCParams)
+    p = sc.p
+    C = sc.C
+    ℓ = sc.ell
+
+    function g(z)
+        fp = -C * sqrt(z * z - p * p) / (z * (1 - z * z))
+        fp - 1 / (π * (z - 1))
+    end
+
+    npts = 10000
+    a = p; b = 1.0 - 1e-12
+    h = (b - a) / npts
+    s = g(a) + g(b)
+    for i in 1:npts-1
+        z = a + i * h
+        s += (iseven(i) ? 2 : 4) * g(z)
+    end
+    integral = s * h / 3
+
+    integral - log(1 - p) / π
+end
+
+"""
+Compute ρ₀ for the T arm by matching at the R corner: f_T(p) = f_R(p) = i.
+
+Evaluates f_T(p) from the T arm's f' series (with ρ₀^T = 0), then sets
+ρ₀^T = i - f_T(p). Uses 40 series terms; converges well since |p| < 1.
+"""
+function _compute_rho0_T(sc::SCParams)
+    p = sc.p
+    ℓ = sc.ell
+
+    fprime_T = _expand_fprime_at_T(sc.C, sc.p, 41)
+    fprime_reg_T = regular_part(fprime_T)
+
+    rho_T = zeros(ComplexF64, 41)
+    for n in 1:40
+        rho_T[n + 1] = fprime_reg_T[n - 1] / n
+    end
+
+    # f_T(p) with ρ₀^T = 0: Res_T · log(p) + Σ ρ_n · p^n
+    f_T_at_p = (-im * ℓ / π) * log(Complex(p))
+    zp = ComplexF64(1)
+    for n in 1:40
+        zp *= p
+        f_T_at_p += rho_T[n + 1] * zp
+    end
+
+    # f_R(p) = i (Re=0: mouth at corner, Im=1: log branch)
+    im - f_T_at_p
 end
 
 """
