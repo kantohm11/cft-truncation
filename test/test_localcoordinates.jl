@@ -74,6 +74,32 @@ using CFTTruncation: compute_geometry, compute_sc_params, fprime_exact,
         end
     end
 
+    # ξ_R(p) = +1 (ρ₀^R shifted by +i to fix propagator sign).
+    # ξ_L(-p) = -1 (L arm ρ₀ unchanged; Z₂ gives α_L = α_R).
+    @testset "3.6 Corners at unit semicircle (R_conv = 1)" begin
+        for ℓ in [0.5, 1.0, 2.0]
+            geom = compute_geometry(ℓ, 40)
+            p = geom.sc.p
+
+            ξ_R = evaluate(geom.arms.R.f_series, p - 1)
+            ξ_L = evaluate(geom.arms.L.f_series, 1 - p)
+            ξ_Tp = evaluate(geom.arms.T.f_series, p)
+            ξ_Tm = evaluate(geom.arms.T.f_series, -p)
+
+            # Magnitude: all corners on the unit circle
+            @test abs(ξ_R) ≈ 1  atol=5e-2
+            @test abs(ξ_L) ≈ 1  atol=5e-2
+            @test abs(ξ_Tp) ≈ 1  atol=5e-2
+            @test abs(ξ_Tm) ≈ 1  atol=5e-2
+
+            # Sign: R corner at +1, L corner at -1, T corners at ±1
+            @test real(ξ_R) ≈ +1  atol=5e-2
+            @test real(ξ_L) ≈ -1  atol=5e-2
+            @test real(ξ_Tp) ≈ +1  atol=5e-2
+            @test real(ξ_Tm) ≈ -1  atol=5e-2
+        end
+    end
+
     @testset "Multiple ℓ values" begin
         for ℓ in [1.0, 2.0]  # skip ℓ=0.5: |α_T| too small for order 20
             geom = compute_geometry(ℓ, 20)

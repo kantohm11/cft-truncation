@@ -1,20 +1,35 @@
 # Implementation Status
 
-## Current Step: 1 — Project Scaffold
+## Core library: complete
+All modules implemented and tested (747 tests passing):
+TruncLaurent, SCMap, LocalCoordinates, NeumannCoefficients, FockSpace,
+JMatrices, BPZ, PrimaryVertex, CompactBoson, Cache, Recursion.
 
-### Completed
-- [x] Step 0: Updated design docs with tensor structure (V_phys ⊗ V_bond^2 → ℂ, BPZ form, MPS operator form)
+CACHE_VERSION = v4_rho0_R_corner_plus1
 
-### In Progress
-- [ ] Step 1: Project scaffold (dirs, Project.toml, module, tests)
+## Session memos (reverse chronological)
 
-### Upcoming
-- [ ] Step 2: TruncLaurent
-- [ ] Step 3: SCMap
-- [ ] Step 4: LocalCoordinates
-- [ ] Step 5: NeumannCoefficients
-- [ ] Step 6: FockSpace
-- [ ] Step 7: JMatrices
-- [ ] Step 8: BPZ
-- [ ] Step 9: PrimaryVertex
-- [ ] Step 10: Recursion + compute_vertex
+- **[session_memo_rconv_fix.md](session_memo_rconv_fix.md)** (2026-04-15)
+  Fixed ρ₀^T: corners at |ξ_T| = ±1, R_conv = 1. Vertex validated at small ℓ
+  (d/(πℓ) → 1). Moderate ℓ still marginal. Design review: no formula errors.
+
+- **[session_memo_rho0_and_bopen.md](session_memo_rho0_and_bopen.md)** (2026-04)
+  BPZ sign fix (U(1) convention). ρ₀ corner-matching convention (superseded by
+  R_conv fix above). |B^open⟩ contraction — initial investigation found divergence.
+
+## Design documents
+
+- [conformal_map_cross.md](../design/conformal_map_cross.md) — SC map, local coordinates, Neumann coefficients
+- [plaquette_amplitude.md](../design/plaquette_amplitude.md) — Ward identity, primary vertex, tensor structure
+- [local_coordinates_and_strip.md](local_coordinates_and_strip.md) — ρ₀ conventions, Z₂ symmetry, ASCII diagrams
+- [modified_vertex.md](modified_vertex.md) — propagator factor, analogy with OSFT e^{K/2}
+- [open_boundary_state.md](open_boundary_state.md) — |B^open⟩ definition, squeezed vacuum, exact overlap
+- [decisions.md](decisions.md) — design decision log
+
+## Open questions
+
+1. **R_conv = 1 marginal at moderate ℓ** — undamped |B^open⟩ contraction doesn't
+   converge for ℓ ≥ 0.5. Options: work at small ℓ, push R_conv > 1, or resum.
+2. **Slight overshoot at very small ℓ** — d/(πℓ) > 1.0 at ℓ < 0.005. Minor.
+3. **Resolved**: ρ₀^R shifted by +i so ξ_R(p) = +1, α_R = α_L. Propagator sign fixed.
+   Z₂ now manifests as N^{LL}_{mk} = (-1)^{m+k} N^{RR}_{mk}.

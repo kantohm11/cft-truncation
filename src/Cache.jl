@@ -24,8 +24,12 @@ using JLD2
 #   - FockBasis state ordering or normalization (FockSpace.jl)
 #   - modified_vertex propagator factor formula
 # ----------------------------------------------------------------
-const CACHE_VERSION = "v2_rho0"
+const CACHE_VERSION = "v4_rho0_R_corner_plus1"
 # History:
+#   v4_rho0_R_corner_plus1 — ρ₀^R shifted by +i so ξ_R(p) = +1, α_R = α_L.
+#                             Removes (-1)^N sign from propagator.
+#   v3_rho0_unit_circle — ρ₀^T targets corners at |ξ_T| = ±1 (R_conv = 1),
+#                          instead of corner-matching f_T(p) = i.
 #   v2_rho0    — ρ₀ computed from SC map geometry (corner matching),
 #                BPZ sign fixed to U(1) convention ∏(-1)^{k+1}.
 #   v1_initial — first version, after σ convention fix, sparse J_k,

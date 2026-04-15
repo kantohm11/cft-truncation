@@ -22,15 +22,15 @@ using CFTTruncation: compute_geometry, compute_neumann, compose,
         end
     end
 
-    @testset "4.2 Z₂ symmetry: N^{LL} = N^{RR}" begin
-        # With ρ₀^L = ρ₀^R + i (mouth-at-corner convention, |α_L| = |α_R|):
-        # f_L(ζ) = f_R(-ζ), giving N^{LL}_{m,k} = N^{RR}_{m,k} exactly.
+    @testset "4.2 Z₂ symmetry: N^{LL} = (-1)^{m+k} N^{RR}" begin
+        # With α_L = α_R (ρ₀^R shifted by +i): f_L(ζ) = -f_R(-ζ),
+        # giving N^{LL}_{m,k} = (-1)^{m+k} N^{RR}_{m,k}.
         for ℓ in [0.5, 1.0, 2.0]
             geom = compute_geometry(ℓ, 15)
             neum = compute_neumann(geom, 6)
 
             for m in 1:4, k in 0:4
-                @test neum.𝒩.LL[m, k+1] ≈ neum.𝒩.RR[m, k+1] atol=1e-10
+                @test neum.𝒩.LL[m, k+1] ≈ (-1)^(m+k) * neum.𝒩.RR[m, k+1] atol=1e-10
             end
         end
     end

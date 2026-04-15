@@ -118,24 +118,24 @@ end
 
 Compute the integration constant ρ₀ for arm `label`. The SC map
 f(z) = ∫f'(z)dz has one free additive constant C. The ρ₀ for each arm
-is determined by requiring all arm expansions to agree at the corners z = ±p.
+is chosen so that the reflex corners z = ±p land on the unit semicircle
+|ξ_i| = 1, giving Neumann series R_conv = 1 for all arms.
 
-Convention: mouth at corner. R corner at σ = 0, L corner at σ = ℓ.
-For centered plots: post-shift by -ℓ/2.
-
-- R arm: ρ₀ is real, from numerical integration targeting Re(f(p)) = 0 (mouth at corner).
-- L arm: ρ₀ = ρ₀^R + i. The Z₂ gives ρ₀^L_Z2 = ρ₀^R + ℓ + i, but the
-  L arm local coordinate uses ξ_L = exp(π(f - ℓ)) to shift its mouth to the
-  L corner (σ = ℓ). The ℓ is absorbed, leaving ρ₀^L = ρ₀^R + i.
-  Result: |α_L| = |α_R| (symmetric).
-- T arm: ρ₀ is complex, from matching f_T(p) = f_R(p) = i.
+- R arm: ρ₀ = ρ₀^R_num + i, where ρ₀^R_num is real from numerical integration
+  targeting Re(f(p)) = 0. The +i shift puts ξ_R(p) = +1 (not -1), removing
+  the (-1)^N sign from the propagator obtained by |B^open⟩ contraction.
+- L arm: ρ₀ = ρ₀^R_num + i (same value as R). The Z₂ gives ρ₀^L_Z2 = ρ₀^R + ℓ + i,
+  but ξ_L = exp(π(f - ℓ)) absorbs the ℓ, leaving ρ₀^L = ρ₀^R_num + i.
+  Result: α_L = α_R (equal, both negative), ξ_L(-p) = -1.
+  Z₂ manifests as N^{LL}_{mk} = (-1)^{m+k} N^{RR}_{mk}.
+- T arm: ρ₀ targets f(p) = 0 from the T expansion, giving ξ_T(±p) = ±1.
 """
 function _compute_rho0(sc::SCParams, label::Symbol)
     if label == :R
-        return ComplexF64(_compute_rho0_R(sc))
+        # ρ₀^R_num + i: shift by +i puts ξ_R(p) = +1, giving α_R = α_L.
+        return ComplexF64(_compute_rho0_R(sc)) + im
     elseif label == :L
-        # ξ_L = exp(π(f - ℓ)) shifts mouth to L corner.
-        # Effective ρ₀^L = ρ₀^R + i (the ℓ from Z₂ is absorbed by the shift).
+        # ρ₀^L = ρ₀^R_num + i: Z₂ relation (ℓ absorbed by ξ_L = exp(π(f-ℓ))).
         return ComplexF64(_compute_rho0_R(sc)) + im
     else
         return _compute_rho0_T(sc)
@@ -176,10 +176,14 @@ function _compute_rho0_R(sc::SCParams)
 end
 
 """
-Compute ρ₀ for the T arm by matching at the R corner: f_T(p) = f_R(p) = i.
+Compute ρ₀ for the T arm by placing corners at |ξ_T| = 1.
 
-Evaluates f_T(p) from the T arm's f' series (with ρ₀^T = 0), then sets
-ρ₀^T = i - f_T(p). Uses 40 series terms; converges well since |p| < 1.
+Convention: the two reflex corners z = ±p map to ξ_T = ±1
+(endpoints of the upper semicircle in D⁺). Achieved by setting
+f(p) = 0 from the T arm expansion, so ξ_T(p) = exp(iπ·0/ℓ) = 1.
+
+This gives Neumann series R_conv = 1 for the T arm, matching the
+natural convention already satisfied by the L/R arms.
 """
 function _compute_rho0_T(sc::SCParams)
     p = sc.p
@@ -201,8 +205,8 @@ function _compute_rho0_T(sc::SCParams)
         f_T_at_p += rho_T[n + 1] * zp
     end
 
-    # f_R(p) = i (Re=0: mouth at corner, Im=1: log branch)
-    im - f_T_at_p
+    # Target f(p) = 0 so that ξ_T(p) = exp(iπ/ℓ · 0) = +1
+    -f_T_at_p
 end
 
 """
