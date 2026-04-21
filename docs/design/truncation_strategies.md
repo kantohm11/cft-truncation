@@ -169,31 +169,78 @@ Settled (2026-04-21):
 - **Does $A$ grow with truncation?** Not for now — TQFT fixed through
   the sequence. A variant where $A$ grows is a later consideration.
 
+Partially settled (2026-04-21) — **Q1: translation of $V_\ell$.**
+The BCFT on an interval with non-simple BC $B = B_1 + B_2$ has Hilbert
+space with four sectors $\mathcal{H}_{B_i B_j}$ ($i, j \in \{1, 2\}$).
+OPE fuses $B_x B_y$ operators with $B_y B_z$ operators into $B_x B_z$
+operators — the multifusion structure of
+$\text{Mat}_2(\text{Vect})$ (= the category of bimodules over
+$A = \mathbb{C}[\mathbb{Z}_2]$).
+
+*For the T-vertex specifically:* the T-shape's outer boundary has
+**3 connected components** (L-corner piece = L-top ∪ T-right; R-corner
+piece = R-top ∪ T-left; Bottom line at $\tau = 0$). Each carries a
+uniform simple-BC label, so $V_\ell$ is an **8-block tensor** indexed
+by $(x_{\text{LT}}, x_{\text{RT}}, x_{\text{bot}}) \in \{B_1, B_2\}^3$.
+Each arm's state lives in the sector determined by the BCs on its two
+sides:
+- L arm: $(x_{\text{bot}}, x_{\text{LT}})$
+- R arm: $(x_{\text{bot}}, x_{\text{RT}})$
+- T arm: $(x_{\text{RT}}, x_{\text{LT}})$
+
+The global $\mathbb{Z}_2$ BC-swap $B_1 \leftrightarrow B_2$ pairs the 8
+blocks into **4 orbits of size 2** (no fixed points). Existing code
+gives the $(B_1, B_1, B_1)$ block; $(B_2, B_2, B_2)$ follows trivially
+by $\mathbb{Z}_2$; the 6 mixed blocks come in 3 $\mathbb{Z}_2$-pairs
+that need separate computation.
+
+*Intertwining with U(1):* states in $B_x B_y$ carry U(1) charges in
+$\mathbb{Z} + (x - y)/2$ — integers on the diagonal blocks,
+half-integers off-diagonal. Implementation plan: a "doubled-U(1)"
+representation where all charges are stored as integers with physical
+charge = $n / 2$, together with a leg-level parity invariant
+$n \equiv (x - y) \pmod 2$. (The alternative is honest half-integer
+U(1) via a custom TensorKit sector.)
+
+*TensorKit status:* TensorKit 0.16.3 **does** handle multifusion
+categories directly — no scaffolding required. Relevant machinery in
+`TensorKitSectors/src/sectors.jl`:
+- `UnitStyle` trait with two cases: `SimpleUnit()` (fusion) vs
+  `GenericUnit()` (multifusion).
+- `allunits(::Type{I})` returns a tuple of unit sectors (more than one
+  → `GenericUnit`).
+- `leftunit(a)`, `rightunit(a)` for bimodule/multifusion categories
+  where units differ per sector.
+- Fusion trees require an explicit coupled sector under `GenericUnit`
+  (not a restriction, a consequence).
+- `GradedSpace{I}` and `insertleftunit` / `insertrightunit` already
+  branch on `UnitStyle`.
+
+A worked template is already in the package:
+`TensorKitSectors/src/multifusion.jl` defines `IsingBimodule <: Sector`
+with two non-simple units `(1,1,0), (2,2,0)` and fusion
+$(i,j) \otimes (k,l) = \delta_{jk}\,(i,l)$. Our $\text{Mat}_2(\text{Vect})$
+is the simpler, label-free version of the same pattern — we can
+implement it by paring down `IsingBimodule` (dropping the $\{I, \psi,
+\sigma\}$ labels, keeping only the $(\text{row}, \text{col})$
+groupoid structure), then combining with `U1Irrep` via
+`ProductSector`.
+
 Still open:
 
-1. **Translation of $V_\ell$ into strategy B.** The existing T-vertex
-   is computed for the three-arm T-shape with a single simple BC
-   ($M_0$, Neumann + zero Wilson) on the outer boundary. In strategy B,
-   what does $V_\ell$ become? A $2\times 2\times 2$-block tensor
-   labelled by which simple $M_i$ sits on each arm's outer boundary
-   segment? Something else entirely?
-2. **$\mathbb{Z}_2$-equivariant vertex for $M_\pi$.** Does the $M_\pi$
-   vertex follow from $M_0$ by the $\mathbb{Z}_2$ symmetry (Wilson-line
-   shift), or does it need a separate computation?
-3. **Wilson-line / morphism data.** The hom-spaces
-   $\operatorname{Hom}(M_0, M_\pi)$ and $\operatorname{Hom}(M_\pi, M_0)$
-   carry the off-diagonal module-category data. How are these
-   represented concretely — as operator insertions on the boundary, as
-   additional Fock-space blocks, or as separate amplitudes?
-4. **Norm for approximation.** What quantity measures convergence of
-   the truncated CFT-side data to the (formal, infinite-dim) BCFT with
+1. **Wilson-line / morphism data (Q3).** Concrete computational
+   representation of $\operatorname{Hom}(M_0, M_\pi)$ and conjugate —
+   as boundary-operator insertions, as additional Fock-space blocks, or
+   as separate amplitudes. The 6 mixed blocks in Q1 realise some of
+   this, but the open-string state space $\mathcal{H}_{B_1 B_2}$
+   itself still needs to be identified.
+2. **Norm for approximation (Q4).** What quantity measures convergence
+   of the truncated CFT-side data to the formal infinite-dim BCFT with
    non-simple BC? HS / operator / spectral / matrix-element?
-5. **First diagnostic.** What computation — using the existing code
-   plus a $\mathbb{Z}_2$-partner vertex — is the fastest check that
-   strategy B is on the right track? Candidates: matching the BCFT
-   partition function on an interval with $M$ at both ends; a Wilson-
-   line matrix element between the two vacua; the spectrum in the
-   $M$-sector.
+3. **First diagnostic (Q5).** Fastest check that strategy B is on the
+   right track. Candidates: BCFT partition function on an interval
+   with $M$ at both ends; Wilson-line matrix element between the two
+   vacua; spectrum in the $M$-sector.
 
 ## 7. Relation to the existing concrete objects
 
