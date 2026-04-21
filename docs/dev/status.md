@@ -1,5 +1,15 @@
 # Implementation Status
 
+## Current strategic direction (2026-04-21)
+
+Working on **Strategy B** — CFT as an interface inside a fixed TQFT.
+See [`../design/truncation_strategies.md`](../design/truncation_strategies.md)
+for the full framing (what was tried, what's current, open questions).
+
+The earlier "T-vertex as approximate module multiplication" framing
+(including the modified-vertex $\widetilde V_\ell = e^{(H_L+H_R)\ell/2} V_\ell$
+as the primary object) is abandoned.
+
 ## Core library: complete
 All modules implemented and tested (747 tests passing):
 TruncLaurent, SCMap, LocalCoordinates, NeumannCoefficients, FockSpace,
