@@ -243,10 +243,12 @@ Fix a conformal-weight cutoff (working number $h_{\text{bond, phys}}
 Settled (2026-04-21) — **Q5: first diagnostic (two-phase plan).**
 - **Phase 1 — finite-entanglement scaling.** Treat $V_\ell$ as an MPS
   tensor ($V_T$ = physical leg, $V_L, V_R$ = bond legs). Build the
-  MPS transfer matrix $E$ by contracting $V_\ell \otimes V_\ell^\perp$
-  over $V_T$ (the "I-shape"); extract correlation length $\xi_D$ from
-  its subleading eigenvalue and entanglement entropy $S_D$ from the
-  mixed-canonical $C$ matrix. Plot $S_D$ vs $\log \xi_D$ as a function
+  MPS transfer matrix $E$ by contracting $V_\ell \otimes V_\ell^\dagger$
+  over $V_T$ (the bra layer is the Hermitian conjugate $V_\ell^\dagger$,
+  distinct from the geometric 180°-flipped $V_\ell^\perp$ used in
+  Phase 2); extract correlation length $\xi_D$ from its subleading
+  eigenvalue and entanglement entropy $S_D$ from the mixed-canonical
+  $C$ matrix. Plot $S_D$ vs $\log \xi_D$ as a function
   of $h_{\max}$; slope should be $c/6$ with target $c = 1$
   (Calabrese–Cardy / Tagliacozzo–Pollmann finite-entanglement
   scaling). *No non-simple-BC / $\perp$-composition machinery needed.*

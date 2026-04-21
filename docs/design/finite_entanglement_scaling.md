@@ -45,14 +45,18 @@ $$E \;=\; \sum_s A^s \otimes \bar{A}^s,$$
 a 4-leg tensor with two pairs of bond indices. In our setup, $A = V_\ell$
 with physical leg = $V_T$, so
 
-$$E \;=\; \text{contract } V_\ell \otimes V_\ell^\perp \text{ over } V_T,$$
+$$E \;=\; \text{contract } V_\ell \otimes V_\ell^\dagger \text{ over } V_T,$$
 
-which is the **I-shape** tensor of the project — see
-[`truncation_strategies.md`](./truncation_strategies.md) §6. Here
-$V_\ell^\perp$ plays the role of $\bar{A}$; identifying it is
-[open question](./truncation_strategies.md) 2 of the "still open"
-list. Candidates: complex conjugate of $V_\ell$ with a specific leg
-swap; the 180°-rotated T-vertex; the BPZ image; or a combination.
+which is the MPS bra-ket transfer matrix — the "I-shape" tensor
+in the project's language. Note that $V_\ell^\dagger$ (Hermitian
+conjugate / complex conjugate of the ket layer) is **not** the same
+as the geometric $V_\ell^\perp$ (180°-rotated T-vertex) used for the
+Phase 2 cross / MPO composition in
+[`truncation_strategies.md`](./truncation_strategies.md) §5. Because
+the numerical entries of $V_\ell$ are real, $V_\ell^\dagger$ has the
+same numerical values as $V_\ell$ (with different index interpretation),
+so the transfer matrix contraction is just
+$\sum_T V_{T,L,R}\, V_{T,L',R'}$.
 
 Viewing $E$ as a matrix
 $(V_L \otimes V_L) \to (V_R \otimes V_R)$, its spectrum gives:
@@ -98,10 +102,10 @@ $h_{\max} \in H$.
 For each $h_{\max} \in H$:
 
 1. Compute $V_\ell^{(h_{\max})}$ (existing `compute_vertex`).
-2. Construct $V_\ell^\perp$ by the (to-be-fixed) symmetry map from
+2. Construct $V_\ell^\dagger$ by the (to-be-fixed) symmetry map from
    $V_\ell$. Verify against a direct recomputation on a low-level block
    as a one-time sanity check.
-3. Build $E = V_\ell \otimes V_\ell^\perp$ with $V_T$ contracted. Shape
+3. Build $E = V_\ell \otimes V_\ell^\dagger$ with $V_T$ contracted. Shape
    $D^2 \times D^2$ as a matrix.
 4. Arnoldi-style eigendecomposition: obtain $\lambda_0, \lambda_1$ and
    the dominant left/right eigenvectors $l, r$. Rescale $V_\ell$ by
@@ -154,7 +158,7 @@ $h_{\max}$ (power-law or faster).
   data has a bug.
 - Correct slope, wrong intercept: fine, expected.
 - Clean power law but slope $\neq 1/6$: either wrong identification of
-  $V_\ell^\perp$ (so $E$ isn't the MPS transfer matrix), or a
+  $V_\ell^\dagger$ (so $E$ isn't the MPS transfer matrix), or a
   normalisation issue.
 - Extremely small $\xi_D$ (order 1) even at large $h_{\max}$: the MPS
   is near-trivial; likely $\ell$ too small and we're close to the
@@ -162,10 +166,10 @@ $h_{\max}$ (power-law or faster).
 
 ## 8. Relation to Phase 2
 
-Phase 2 (composing $V_\ell \circ V_\ell^\perp$ over $V_L, V_R$ to form
+Phase 2 (composing $V_\ell \circ V_\ell^\dagger$ over $V_L, V_R$ to form
 the cross / MPO, then extracting a Hamiltonian — see
 `plaquette_amplitude.md` §7.4) uses the **same** two ingredients
-$V_\ell$ and $V_\ell^\perp$ but contracts along the *other* pair of
+$V_\ell$ and $V_\ell^\dagger$ but contracts along the *other* pair of
 legs. Phase 1 validates the vertex as a well-behaved MPS tensor; Phase 2
 uses it to build a lattice Hamiltonian. If Phase 1 doesn't show $c = 1$,
 Phase 2's target of identifying a concrete Hamiltonian (XXZ or similar)

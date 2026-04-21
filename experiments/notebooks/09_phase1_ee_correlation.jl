@@ -46,18 +46,19 @@ Finite-entanglement scaling: $S_D \sim (c/6) \log \xi_D$, target $c = 1$.
 See [`docs/design/finite_entanglement_scaling.md`](../../docs/design/finite_entanglement_scaling.md)
 for the full method writeup.
 
-## ⚠ Open implementation point: identity of $V_\ell^\perp$
+## Note on the bra layer: $V_\ell^\dagger$, not $V_\ell^\perp$
 
-In MPS language, the transfer matrix uses $\bar{A}$ (complex
-conjugate). The $V_\ell$ entries appear to be real-valued, so $\bar{V}_\ell = V_\ell$ and
-the naive transfer matrix $E = V_\ell \otimes V_\ell$ (contracted over
-$V_T$) should be the right object. The "180°-rotated" $V_\ell^\perp$ of
-`truncation_strategies.md` §6 is a distinct geometric construction
-used for Phase 2 (cross / MPO) — not needed here.
+In MPS language, the transfer matrix uses the Hermitian conjugate of
+the ket: $E = \sum_s A^s \otimes (A^s)^\dagger$. For $A = V_\ell$ with
+real entries, $V_\ell^\dagger$ has the same numerical values as
+$V_\ell$ (only the index interpretation — which space is domain vs
+codomain — changes), so the contraction is just
+$\sum_T V_{T,L,R}\,V_{T,L',R'}$. That's what this notebook
+computes.
 
-This notebook uses $V_\ell$ for both layers. If the finite-entanglement
-scaling comes out wrong, revisit this assumption (there may be a sign
-/ phase / reflection in the "bra" layer we're missing).
+The $V_\ell^\perp$ of `truncation_strategies.md` §5 (geometric
+180°-flipped T-vertex) is a **different** object used for Phase 2
+(cross / MPO composition). Don't confuse the two.
 """
 
 # ╔═╡ f0000009-0020-0000-0000-000000000001
