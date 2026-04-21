@@ -251,14 +251,26 @@ Settled (2026-04-21) — **Q5: first diagnostic (two-phase plan).**
   Hamiltonian (e.g. XXZ). If we can point at a known lattice
   Hamiltonian coming out the other end, strategy B is validated.
 
-Still open:
+Settled (2026-04-21) — **identity of $\perp$.**
+$\perp$ is the T-vertex with the $V_T$ arm flipped to point *down*
+instead of up (geometrically: 180° rotation of the T-shape). By the
+user's convention, the arm-label assignments are preserved —
+"left of $\perp$ is $V_L$" — so the ASCII-diagram-native naming
+between T and $\perp$ is intentionally not unified; this convention
+mismatch is accepted rather than refactored.
 
-1. **Identify $\perp$.** What exactly is the perpendicular partner
-   used in Phase 2 of Q5? Candidates include a 90°-rotated T-vertex,
-   a Z₂-reflected copy, or a distinct tensor built from the same
-   geometric recipe — likely whichever composition yields a closed
-   row-to-row transfer / plaquette MPO. Needed before Phase 2 can
-   start.
+Composing T and $\perp$ (T above, $\perp$ below, sharing the horizontal
+strip) yields the **cross (plus-sign) region** already defined in
+[`plaquette_amplitude.md`](./plaquette_amplitude.md) §1 — a horizontal
+strip of width 1 joined with a vertical strip of width $\ell$,
+producing four infinite arms (L, R, Up, Down). The resulting 4-leg
+tensor is the **MPO tensor** of the lattice model (see
+`plaquette_amplitude.md` §7.4).
+
+Direct SC-map construction of the cross from scratch is possible, but
+more expensive numerically than composing the existing T-vertex with
+its flipped partner $\perp$ — which is why Phase 2 of Q5 goes via the
+composition route.
 
 ## 7. Relation to the existing concrete objects
 
