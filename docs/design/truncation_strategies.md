@@ -226,21 +226,39 @@ implement it by paring down `IsingBimodule` (dropping the $\{I, \psi,
 groupoid structure), then combining with `U1Irrep` via
 `ProductSector`.
 
+Settled (2026-04-21) — **Q3: off-diagonal sectors.**
+- $\mathcal{H}_{B_2 B_2} \cong \mathcal{H}_{B_1 B_1}$ by $\mathbb{Z}_2$
+  (both are "same-BC" sectors, related by the Wilson-line shift).
+- $\mathcal{H}_{B_1 B_2}$ (and $\mathcal{H}_{B_2 B_1}$ by conjugation)
+  is spanned by primaries $e^{i k \phi}$ with $k \in \mathbb{Z} + 1/2$
+  and their U(1)-current descendants. The T-vertex construction is a
+  straightforward generalisation of what the code already does —
+  add half-integer momentum primaries to `PrimaryVertex`, propagate
+  through the Ward recursion.
+
+Settled (2026-04-21) — **Q4: convergence norm.**
+Fix a conformal-weight cutoff (working number $h_{\text{bond, phys}}
+\sim 8$) and experiment. Don't overthink the norm up front.
+
+Settled (2026-04-21) — **Q5: first diagnostic (two-phase plan).**
+- **Phase 1 — EE from $T$.** Compute entanglement entropy from the
+  singular values of a transfer matrix built from the existing
+  T-vertex. *Doesn't require non-simple BC machinery* — existing
+  code suffices. Fastest possible first check.
+- **Phase 2 — MPO and Hamiltonian extraction.** Compose $T$ with
+  $\perp$ (a "perpendicular" partner — see open point below) to form
+  an MPO; extract a Hamiltonian from it. Target: an *identifiable*
+  Hamiltonian (e.g. XXZ). If we can point at a known lattice
+  Hamiltonian coming out the other end, strategy B is validated.
+
 Still open:
 
-1. **Wilson-line / morphism data (Q3).** Concrete computational
-   representation of $\operatorname{Hom}(M_0, M_\pi)$ and conjugate —
-   as boundary-operator insertions, as additional Fock-space blocks, or
-   as separate amplitudes. The 6 mixed blocks in Q1 realise some of
-   this, but the open-string state space $\mathcal{H}_{B_1 B_2}$
-   itself still needs to be identified.
-2. **Norm for approximation (Q4).** What quantity measures convergence
-   of the truncated CFT-side data to the formal infinite-dim BCFT with
-   non-simple BC? HS / operator / spectral / matrix-element?
-3. **First diagnostic (Q5).** Fastest check that strategy B is on the
-   right track. Candidates: BCFT partition function on an interval
-   with $M$ at both ends; Wilson-line matrix element between the two
-   vacua; spectrum in the $M$-sector.
+1. **Identify $\perp$.** What exactly is the perpendicular partner
+   used in Phase 2 of Q5? Candidates include a 90°-rotated T-vertex,
+   a Z₂-reflected copy, or a distinct tensor built from the same
+   geometric recipe — likely whichever composition yields a closed
+   row-to-row transfer / plaquette MPO. Needed before Phase 2 can
+   start.
 
 ## 7. Relation to the existing concrete objects
 
