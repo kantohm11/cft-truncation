@@ -241,15 +241,24 @@ Fix a conformal-weight cutoff (working number $h_{\text{bond, phys}}
 \sim 8$) and experiment. Don't overthink the norm up front.
 
 Settled (2026-04-21) — **Q5: first diagnostic (two-phase plan).**
-- **Phase 1 — EE from $T$.** Compute entanglement entropy from the
-  singular values of a transfer matrix built from the existing
-  T-vertex. *Doesn't require non-simple BC machinery* — existing
-  code suffices. Fastest possible first check.
+- **Phase 1 — finite-entanglement scaling.** Treat $V_\ell$ as an MPS
+  tensor ($V_T$ = physical leg, $V_L, V_R$ = bond legs). Build the
+  MPS transfer matrix $E$ by contracting $V_\ell \otimes V_\ell^\perp$
+  over $V_T$ (the "I-shape"); extract correlation length $\xi_D$ from
+  its subleading eigenvalue and entanglement entropy $S_D$ from the
+  mixed-canonical $C$ matrix. Plot $S_D$ vs $\log \xi_D$ as a function
+  of $h_{\max}$; slope should be $c/6$ with target $c = 1$
+  (Calabrese–Cardy / Tagliacozzo–Pollmann finite-entanglement
+  scaling). *No non-simple-BC / $\perp$-composition machinery needed.*
+  Full algorithm in
+  [`finite_entanglement_scaling.md`](./finite_entanglement_scaling.md).
 - **Phase 2 — MPO and Hamiltonian extraction.** Compose $T$ with
-  $\perp$ (a "perpendicular" partner — see open point below) to form
-  an MPO; extract a Hamiltonian from it. Target: an *identifiable*
-  Hamiltonian (e.g. XXZ). If we can point at a known lattice
-  Hamiltonian coming out the other end, strategy B is validated.
+  $\perp$ by contracting over $V_L$ and $V_R$ (the *other* pair of
+  legs, yielding the cross / plus-shape MPO of
+  [`plaquette_amplitude.md`](./plaquette_amplitude.md) §7.4);
+  extract a Hamiltonian. Target: an identifiable lattice Hamiltonian
+  (e.g. XXZ). If we can point at a known Hamiltonian emerging, strategy
+  B is validated.
 
 Settled (2026-04-21) — **identity of $\perp$.**
 $\perp$ is the T-vertex with the $V_T$ arm flipped to point *down*
