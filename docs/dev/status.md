@@ -19,6 +19,16 @@ CACHE_VERSION = v4_rho0_R_corner_plus1
 
 ## Session memos (reverse chronological)
 
+- **[session_memo_phase1_diagnostic.md](session_memo_phase1_diagnostic.md)**
+  (2026-04-22) Phase 1 diagnostic done. Raw $V_\ell$ tiled as MPS is
+  qualitatively CFT-shaped (finite-$N$ EE decreases with $N$, grows
+  with $L$, saturates at $L \approx N/2$) but quantitatively off
+  by ~$10^2$ at ℓ=0.1 and ~$10^4$ at ℓ=0.01. Consistent with
+  $V_\ell$ = identity + $O(\ell^2)$. Bond-space rank-$D^2$ algorithm
+  implemented for finite-$N$ S(L). GHZ sanity fix applied to
+  canonical_C. Notebooks 09 and 10 in place.
+
+
 - **[session_memo_rconv_fix.md](session_memo_rconv_fix.md)** (2026-04-15)
   Fixed ρ₀^T: corners at |ξ_T| = ±1, R_conv = 1. Vertex validated at small ℓ
   (d/(πℓ) → 1). Moderate ℓ still marginal. Design review: no formula errors.
