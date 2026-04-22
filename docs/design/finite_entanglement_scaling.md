@@ -164,7 +164,46 @@ $h_{\max}$ (power-law or faster).
   is near-trivial; likely $\ell$ too small and we're close to the
   identity limit.
 
-## 8. Relation to Phase 2
+## 8. Finite-$N$ $S(L)$ extension
+
+The Phase-1 canonical EE measures the *half-infinite* bipartite EE
+of the uniform MPS ($N \to \infty$). Tiled raw $V_\ell$ in that limit
+is the open boundary state $|B\rangle$ on a cylinder of length 1 and
+circumference $N\ell \to \infty$ — a product state, so
+$S_\text{canon} \to 0$ is the correct thermodynamic answer.
+
+The non-trivial EE lives at **finite $N$**: a subsystem of $L$ out of
+$N$ sites on a PBC cylinder of finite circumference has non-zero
+bipartite EE, compared against the CFT Calabrese–Cardy prediction
+
+$$S(L; N) \;=\; \tfrac{c}{3} \log\!\left[\tfrac{N}{\pi}\sin\!\tfrac{\pi L}{N}\right] + \text{const}.$$
+
+See [`experiments/notebooks/10_finite_N_SL.jl`](../../experiments/notebooks/10_finite_N_SL.jl)
+for the implementation: the L-site reduced density matrix for PBC
+finite-$N$ MPS,
+
+$$\rho(L)_{s, s'} \;=\; \frac{1}{Z_N}\,\operatorname{tr}\!\bigl[E^{N-L} \cdot (A^{s_1} \cdots A^{s_L}) \otimes (A^{s_1'} \cdots A^{s_L'})^*\bigr],
+\qquad Z_N = \operatorname{tr}(E^N),$$
+
+with $E = \sum_s A^s \otimes (A^s)^*$ and $A^s = V_{s, \cdot, \cdot}$.
+
+**Cost note.** The L-site RDM is $d_T^L \times d_T^L$. Naive dense
+diagonalisation is $O(d_T^{3L})$; this bounds $L \leq 4$ at
+$h_\text{phys} = 3$ ($d_T = 7$) on a laptop. The interval's Schmidt
+rank is ≤ $D^2$ (two cuts in PBC), so an $O(D^6)$ bond-space
+algorithm exists and would remove the L-scaling cost — not
+implemented here, future work.
+
+**Current finding (2026-04-22).** At ℓ ∈ {0.01, 0.1}, $h_\text{phys}=3$,
+$h_\text{bond}=6$, the per-$N$ slope of $S$ vs
+$\log[(N/\pi)\sin(\pi L/N)]$ is $\sim 10^{-2}$ — two orders of
+magnitude smaller than the CFT target of $1/3$. The raw-$V_\ell$
+MPS therefore does *not* reproduce CFT boundary-state physics at
+this order. The scaling is at least qualitatively right ($S$
+non-zero, decreasing with $N$, increasing with $L$ until saturation),
+but the prefactor is off by ~30×.
+
+## 9. Relation to Phase 2
 
 Phase 2 (composing $V_\ell \circ V_\ell^\dagger$ over $V_L, V_R$ to form
 the cross / MPO, then extracting a Hamiltonian — see
