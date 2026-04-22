@@ -219,23 +219,51 @@ function hermitise_and_positive(v::Vector, D::Int)
 end
 
 # ╔═╡ f0000009-0063-0000-0000-000000000001
-function canonical_C(E::Matrix{Float64}, D::Int)
+"""
+Sum Hermitian-positive contributions from a collection of eigenvectors
+(columns of `vecs`), each reshaped as D×D and positive-projected.
+This is what's needed when the dominant eigenspace is degenerate:
+the proper fixed point is a positive combination of the full
+eigenspace (for non-injective MPS), not a single eigenvector.
+"""
+function _herm_pos_sum(vecs::AbstractMatrix, D::Int)
+    M = zeros(ComplexF64, D, D)
+    for j in 1:size(vecs, 2)
+        v = vecs[:, j]
+        m = reshape(complex.(v), D, D)
+        m = (m + m') / 2
+        F = eigen(Hermitian(real.(m)))
+        # Pick the sign that keeps the larger-magnitude extremal eigenvalue positive.
+        if abs(F.values[1]) > abs(F.values[end])
+            m = -m
+            F = eigen(Hermitian(real.(m)))
+        end
+        vals = max.(F.values, 0.0)
+        M += F.vectors * Diagonal(vals) * F.vectors'
+    end
+    real.(Matrix(M))
+end
+
+# ╔═╡ f0000009-0063-1000-0000-000000000001
+function canonical_C(E::Matrix{Float64}, D::Int; tol::Real=1e-6)
     @assert size(E, 1) == D*D
-    λR, vR = dominant_eigenvector(E; right=true)
-    λL, vL = dominant_eigenvector(E; right=false)
-    @assert isapprox(λR, λL; atol=1e-8) "left and right dominant eigenvalues should match"
-    r = hermitise_and_positive(vR, D)
-    l = hermitise_and_positive(vL, D)
-    # Normalise so tr(l r) = 1 (standard MPS normalisation).
+    FR = eigen(E)
+    FL = eigen(transpose(E))
+    λmR = maximum(abs.(FR.values))
+    λmL = maximum(abs.(FL.values))
+    @assert isapprox(λmR, λmL; rtol=1e-6) "dominant |eigenvalues| of E and E^T should match"
+    # Dominant eigenspaces (handle degenerate case for non-injective MPS).
+    maskR = abs.(abs.(FR.values) .- λmR) .< tol * λmR
+    maskL = abs.(abs.(FL.values) .- λmL) .< tol * λmL
+    r = _herm_pos_sum(FR.vectors[:, maskR], D)
+    l = _herm_pos_sum(FL.vectors[:, maskL], D)
+    # Normalise so tr(l r) = 1.
     norm_factor = real(tr(l * r))
     r ./= norm_factor
-    # Square roots. l = L^†L with L upper triangular (Cholesky),
-    # r = R R^† with R lower triangular; use the symmetric square-root
-    # form here for simplicity.
     L = sqrt(Hermitian(l))
     R = sqrt(Hermitian(r))
     C = L * R
-    C, λR
+    C, λmR, (nR = sum(maskR), nL = sum(maskL))
 end
 
 # ╔═╡ f0000009-0064-0000-0000-000000000001
@@ -263,9 +291,10 @@ function phase1_at(ell::Float64, h_bond::Float64, h_phys::Float64)
     E = build_transfer_matrix(W)
     ξ, λ_top = correlation_length(E)
     S_short, σ_E = shortcut_entropy(E)
-    C, λ0 = canonical_C(E, D)
+    C, λ0, dom = canonical_C(E, D)
     S, σ_C = ee_from_C(C)
-    (; h_bond, h_phys, D, d_T, ξ, λ_top, S, S_short, σ_E, σ_C, λ0)
+    (; h_bond, h_phys, D, d_T, ξ, λ_top, S, S_short, σ_E, σ_C, λ0,
+       n_dominant_R = dom.nR, n_dominant_L = dom.nL)
 end
 
 # ╔═╡ f0000009-0072-0000-0000-000000000001
@@ -390,6 +419,7 @@ end
 # ╠═f0000009-0061-0000-0000-000000000001
 # ╠═f0000009-0062-0000-0000-000000000001
 # ╠═f0000009-0063-0000-0000-000000000001
+# ╠═f0000009-0063-1000-0000-000000000001
 # ╠═f0000009-0064-0000-0000-000000000001
 # ╟─f0000009-0070-0000-0000-000000000001
 # ╠═f0000009-0071-0000-0000-000000000001
