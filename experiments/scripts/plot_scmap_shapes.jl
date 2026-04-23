@@ -32,22 +32,22 @@ end
 
 function make_plot(sc, fprime_func, title_str, xlim, ylim)
     z_ref = 0.0 + 1.0im
-    ts = vcat(collect(range(-8, -1.3; length=100)),
-              collect(range(-1.3, -0.7; length=200)),
-              collect(range(-0.7, -0.1; length=100)),
-              collect(range(-0.1, 0.1; length=100)),
-              collect(range(0.1, 0.7; length=100)),
-              collect(range(0.7, 1.3; length=200)),
-              collect(range(1.3, 8; length=100)))
+    ts = vcat(collect(range(-12, -1.3; length=150)),
+              collect(range(-1.3, -0.7; length=250)),
+              collect(range(-0.7, -0.1; length=150)),
+              collect(range(-0.1, 0.1; length=150)),
+              collect(range(0.1, 0.7; length=150)),
+              collect(range(0.7, 1.3; length=250)),
+              collect(range(1.3, 12; length=150)))
     sort!(ts); unique!(ts)
-    ηs = [0.01, 0.05, 0.1, 0.3, 1.0, 3.0]
+    ηs = [0.002, 0.01, 0.05, 0.1, 0.3, 1.0, 3.0]
 
     p = plot(size=(600, 600), aspect_ratio=:equal,
              xlabel="Re f", ylabel="Im f", title=title_str,
              legend=:topleft, legendfontsize=7,
              xlims=xlim, ylims=ylim)
 
-    colors = [:cyan, :blue, :purple, :magenta, :orange, :green]
+    colors = [:red, :cyan, :blue, :purple, :magenta, :orange, :green]
     for (η, col) in zip(ηs, colors)
         start = 0.0 + η*im
         f_start = integrate_line(z_ref, start, fprime_func, sc; n=500)
