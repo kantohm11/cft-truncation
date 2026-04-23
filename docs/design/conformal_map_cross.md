@@ -57,6 +57,19 @@ $$f^{\prime}(z) = C\;\frac{\sqrt{(z-p_1)(z-p_2)(z-p_3)(z-p_4)}}{(z-x_L)(z-x_R)(z
 
 **SL(2,R) gauge.** We fix $x_L = -1$, $x_T = 0$, $x_R = 1$, $x_B = \infty$. This uses all three SL(2,R) degrees of freedom, while respecting the horizontal $\mathbb{Z}_2$ symmetry ($z \to -z$) which swaps $(L \leftrightarrow R)$ and fixes $(T, B)$. The additional reflection symmetries of the cross are anti-holomorphic and don't reduce preimage parameters further.
 
+**Branch of the square root.** Evaluate
+
+$$\sqrt{(q_1^2 - z^2)(z^2 - q_2^2)} \;=\; -i\,\sqrt{z - q_1}\,\sqrt{z + q_1}\,\sqrt{z - q_2}\,\sqrt{z + q_2}$$
+
+factored into its four linear branch-point pieces, using Julia's principal
+`sqrt` on each. Each factor's cut runs along $\mathbb{R}$ from the
+corresponding branch point to $-\infty$; none of those cuts intersects the
+UHP interior, so $f'(z)$ is continuous throughout UHP. A naïve
+`sqrt(complex((q_1^2 - z^2)(z^2 - q_2^2)))` would place the cut along the
+**positive imaginary axis of $z$** for $|\mathrm{Im}\,z| > q_1$, making
+$f'$ discontinuous across the T-arm preimage — wrong for a cross (it
+would give $\sigma_L = \sigma_R$, both arms going the same direction).
+
 **Symmetric parametrisation.** Horizontal $\mathbb{Z}_2$ forces corner preimages to pair up: $\{p_1, p_2, p_3, p_4\} = \{q_1, -q_1, q_2, -q_2\}$ for some $0 < q_1 < 1 < q_2$. Ordering on $\mathbb{R}$ going from the B-arm preimage at $+\infty$ past $x_R = 1$ toward $x_T = 0$: $1 < q_2$, then wrapping through the T-arm side: $q_1 < 1$. So
 
 $$f'(z) \;=\; C\;\frac{\sqrt{(q_1^2 - z^2)(z^2 - q_2^2)}}{(z^2 - 1)\,z}.$$
@@ -65,12 +78,12 @@ With the principal-branch $\sqrt{\cdot}$ (as used by Julia's `sqrt(complex(...))
 
 **Residue conditions.** At the four arm preimages:
 
-- **$z = 1$ (R arm, $w_R = 1$, $\sigma_R = +1$):** $\operatorname{Res} = C\sqrt{(1-q_1^2)(q_2^2-1)}/2 = 1/\pi$.
-- **$z = 0$ (T arm, $w_T = \ell$, $\sigma_T = -i$):** $\operatorname{Res} = -iC\,q_1 q_2 = -i\ell/\pi$.
-- **$z = \infty$ (B arm, $w_B = \ell$, $\sigma_B = -i$):** $\operatorname{Res} = -iC = -i\ell/\pi$.
-- **$z = -1$ (L arm):** same magnitude as $z=1$ by the horizontal $\mathbb{Z}_2$ symmetry.
+- **$z = +1$ (R arm, $w_R = 1$, $\sigma_R = +1$):** $\operatorname{Res} = +1/\pi$. Arm goes to $\mathrm{Re}\,f \to -\infty$ (LEFT in target, where L/R naming is a convention).
+- **$z = -1$ (L arm, $w_L = 1$, $\sigma_L = -1$):** $\operatorname{Res} = -1/\pi$. Arm goes to $\mathrm{Re}\,f \to +\infty$ (RIGHT).
+- **$z = 0$ (T arm, $w_T = \ell$, $\sigma_T = -i$):** $\operatorname{Res} = -iC\,q_1 q_2 = -i\ell/\pi$. Arm goes UP.
+- **$z = \infty$ (B arm, $w_B = \ell$, $\sigma_B = -i$):** $\operatorname{Res}_\infty$ reads $-i\ell/\pi$ via $z\cdot f'(z) \to -i\ell/\pi$ as $z \to \infty$. Arm goes DOWN.
 
-The $\mathbb{Z}_2$ of the UHP preimage configuration gives $\sigma_L = \sigma_R = +1$ in this codebase's convention (both residues at $\pm 1$ come out $+1/\pi$ when approached from UHP — the sign flip from $z \to -z$ relates UHP values to LHP values, not UHP-approach residues). This matches the T-shape convention in `src/LocalCoordinates.jl`.
+Opposite $\sigma$ signs at $z = \pm 1$ (vs the same-sign T-shape convention in `src/LocalCoordinates.jl` for its three arms) reflect the factored-branch choice above; the L and R arms of the cross genuinely point in opposite directions.
 
 **Closed-form solution.** From the three residue equations:
 
@@ -85,6 +98,10 @@ $$\boxed{\quad q_1(\ell) = \frac{\sqrt{1+\ell^2}-1}{\ell},\qquad q_2(\ell) = \fr
 Limits: $\ell \to 0$ gives $q_1 \to \ell/2, q_2 \to 2/\ell$ (corners collapse with vertical arms); $\ell \to \infty$ gives $q_1, q_2 \to 1$ (corners collapse onto $\pm 1$ with horizontal arms). At $\ell = 1$: $q_1 = \sqrt 2 - 1$, $q_2 = \sqrt 2 + 1$, $C = 1/\pi$.
 
 **Implementation.** `src/SCMap.jl` provides `SCParamsCross` and `compute_sc_params_cross(ℓ)`, plus `fprime_exact_cross(z, sc)`. Tests in `test/test_scmap_cross.jl` verify closed-form values, algebraic invariants ($q_1 q_2 = 1$, $C = \ell/\pi$), limits, the residue conditions, and the horizontal $\mathbb{Z}_2$ ($f'(-z) = -f'(z)$).
+
+**Visual verification.** Figure `figures/cross_geometry_check.png` plots the image of UHP horizontal lines at $\mathrm{Im}(z) \in \{0.01, 0.05, 0.1, 0.3, 1, 3\}$ under $f$ at $\ell = 1$, alongside the analogous T-shape plot for context. The four arms of the cross are visible as four protrusions from a central square region, confirming that the closed-form SC parameters and the factored-branch $f'$ reproduce the intended cross geometry.
+
+![Cross geometry check at ℓ=1](figures/cross_geometry_check.png)
 
 **Not needed here — the elliptic structure.** §6 below notes that the cross SC map is uniformised by Jacobi $\operatorname{sn}$. That structure is useful for understanding the large-$n$ asymptotics of Neumann coefficients, but *not* required for the SC parameters themselves: the algebra closes analytically.
 

@@ -64,23 +64,16 @@ using CFTTruncation: compute_sc_params_cross, fprime_exact_cross
         @test fp isa ComplexF64
         @test isfinite(fp)
 
-        # Residue at z = 1 (R arm): Res = +1/π. (The principal-branch sqrt
-        # of the numerator is real-positive at z = 1 + iε when approached
-        # from UHP.)
+        # Factored-sqrt branch gives opposite signs at ±1 (proper cross
+        # with L, R arms going in opposite directions).
         δ = 1e-8
         res_R = fprime_exact_cross(1.0 + δ*im, sc) * (δ*im)
-        @test abs(res_R - 1/π) < 1e-4
+        @test abs(res_R - 1/π) < 1e-4           # R arm, σ_R = +1 (goes to Re = −∞)
 
-        # Residue at z = −1 (L arm): also +1/π in this codebase's
-        # convention (σ_L = σ_R = +1 — see LocalCoordinates.jl for the
-        # T-shape analogue). The naïve z → −z Z_2 would give −1/π, but
-        # Z_2 relates UHP values to LHP values, so UHP-approach residues
-        # at ±1 come out with the same sign.
         res_L = fprime_exact_cross(-1.0 + δ*im, sc) * (δ*im)
-        @test abs(res_L - 1/π) < 1e-4
+        @test abs(res_L - (-1/π)) < 1e-4        # L arm, σ_L = −1 (goes to Re = +∞)
 
         # Residue at z = 0 (T arm, w_T σ_T / π = −iℓ/π with σ_T = −i, w_T = ℓ).
-        # At ℓ = 1, w_T = 1, so residue = −i/π.
         res_T = fprime_exact_cross(δ*im, sc) * (δ*im)
         @test abs(res_T - (-1im/π)) < 1e-4
     end
@@ -89,21 +82,19 @@ using CFTTruncation: compute_sc_params_cross, fprime_exact_cross
         δ = 1e-9
         for ℓ in [0.1, 0.5, 1.0, 2.0, 5.0]
             sc = compute_sc_params_cross(ℓ)
-            # R arm (width 1, direction +1): residue = 1/π
+            # R arm at z=+1 (width 1, σ_R = +1): residue = +1/π
             res_R = fprime_exact_cross(1.0 + δ*im, sc) * (δ*im)
             @test abs(res_R - 1/π) < 1e-4
-            # T arm (width ℓ, direction −i): residue = −iℓ/π
+            # L arm at z=-1 (width 1, σ_L = -1): residue = -1/π
+            res_L = fprime_exact_cross(-1.0 + δ*im, sc) * (δ*im)
+            @test abs(res_L - (-1/π)) < 1e-4
+            # T arm at z=0 (width ℓ, direction −i): residue = −iℓ/π
             res_T = fprime_exact_cross(δ*im, sc) * (δ*im)
             @test abs(res_T - (-1im*ℓ/π)) < 1e-4
-            # B arm: check via large imaginary z.
-            # For z = iR (R large), f'(iR) ∼ −iC/z_at_∞-limit.
-            # Integral around large semicircle gives residue at ∞.
-            # Equivalently: substitute u = 1/z, evaluate −u² f'(1/u) at u → 0.
+            # B arm at z=∞: use z·f'(z) as z → iR, which equals −Res_∞.
+            # Residue at ∞ is −iℓ/π, so z·f'(iR) → −iℓ/π.
             R_big = 1e8
             val = fprime_exact_cross(R_big * 1im, sc)
-            # f'(iR) ≈ −C/R → residue at ∞ = −iC = −iℓ/π
-            # Using lim z·f'(z) as z → ∞ gives the NEGATIVE of Res_∞; here
-            # z f'(z) at z = iR: iR · (−C/R) = −iC = −iℓ/π. Matches.
             res_B = (1im * R_big) * val
             @test abs(res_B - (-1im*ℓ/π)) < 1e-4
         end

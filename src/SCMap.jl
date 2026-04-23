@@ -74,19 +74,38 @@ Evaluate the cross SC derivative
 
     f'(z) = C √{(q_1² − z²)(z² − q_2²)} / ((z² − 1) · z).
 
-Branch of √ uses Julia's principal branch via `sqrt(complex(...))`.
-With this convention, the residues are:
+The square root is evaluated by **factoring** into its four branch-point
+pieces:
 
-    Res_{z=0}  f' = −i C q_1 q_2 = −iℓ/π   (T arm, σ_T = −i)
-    Res_{z=±1} f' = ± C √{(1−q_1²)(q_2²−1)}/2 = ±1/π   (R/L arm, σ_R,L = ±1)
-    Res_{z=∞}  f' = −i C = −iℓ/π   (B arm, σ_B = −i)
+    √{(q_1² − z²)(z² − q_2²)}
+      = −i · √{(z − q_1)(z + q_1)(z − q_2)(z + q_2)}      (identity)
+      = −i · √{z − q_1} · √{z + q_1} · √{z − q_2} · √{z + q_2}
 
-Both T and B carry σ = −i in this codebase's convention (as does the
-T-shape T arm in `fprime_exact`); the geometric "T goes up, B goes
-down" distinction comes from whether z → 0 or z → ∞ is approached.
+using Julia's principal `sqrt` on each linear factor. Each factor's
+branch cut runs along the real axis from its branch point to -infinity;
+none of those cuts intersect UHP, so f'(z) is continuous throughout UHP.
+
+(Using Julia's `sqrt(complex((q_1^2 − z^2)(z^2 − q_2^2)))` on the
+product would put the branch cut along the **positive imaginary
+axis of z** wherever Im(z) > q_1, because (q_1^2 − z²)(z^2 − q_2^2)
+becomes real-negative there. That would make f' discontinuous across
+the T-arm preimage at z = 0 for integration paths in UHP — which is
+geometrically wrong for a cross.)
+
+With this factored branch, the residues are:
+
+    Res_{z=0}   f' = −i C q_1 q_2 = −iℓ/π    (T arm, σ_T = −i)
+    Res_{z=+1}  f' = +1/π                    (R arm, σ_R = +1)
+    Res_{z=−1}  f' = −1/π                    (L arm, σ_L = −1)
+    Res_{z=∞}   f' = −iℓ/π                   (B arm, σ_B = −i)
+
+The ±1/π pair at z=±1 is the crucial difference from a
+principal-of-product convention: opposite signs mean the L and R arms
+go in opposite directions (L → +∞, R → −∞), as required for the cross.
 """
 function fprime_exact_cross(z::Number, sc::SCParamsCross)
     q1 = sc.q1; q2 = sc.q2
-    sq = sqrt(complex((q1^2 - z^2) * (z^2 - q2^2)))
-    return sc.C * sq / ((z^2 - 1) * z)
+    zc = complex(z)
+    sq = sqrt(zc - q1) * sqrt(zc + q1) * sqrt(zc - q2) * sqrt(zc + q2)
+    return sc.C * (-1im) * sq / ((zc^2 - 1) * zc)
 end
