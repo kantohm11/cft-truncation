@@ -49,13 +49,44 @@ $$f^{\prime}(z) = C\;\frac{\sqrt{z^2 - p^2}}{z(z^2 - 1)}.$$
 
 Two unknowns remain: $p$ and $C > 0$.
 
-### 1.4 Remark: the cross (4-point case)
+### 1.4 The cross (4-point case)
 
 For the full cross $\mathcal{C}_\ell$ (four open arms), there are 4 concave corners, no right-angle corners, and 4 arm infinities:
 
 $$f^{\prime}(z) = C\;\frac{\sqrt{(z-p_1)(z-p_2)(z-p_3)(z-p_4)}}{(z-x_L)(z-x_R)(z-x_T)(z-x_B)}.$$
 
-The $\mathbb{Z}_2 \times \mathbb{Z}_2$ symmetry (enhanced to $D_4$ at $\ell = 1$) constrains the parameters analogously.
+**SL(2,R) gauge.** We fix $x_L = -1$, $x_T = 0$, $x_R = 1$, $x_B = \infty$. This uses all three SL(2,R) degrees of freedom, while respecting the horizontal $\mathbb{Z}_2$ symmetry ($z \to -z$) which swaps $(L \leftrightarrow R)$ and fixes $(T, B)$. The additional reflection symmetries of the cross are anti-holomorphic and don't reduce preimage parameters further.
+
+**Symmetric parametrisation.** Horizontal $\mathbb{Z}_2$ forces corner preimages to pair up: $\{p_1, p_2, p_3, p_4\} = \{q_1, -q_1, q_2, -q_2\}$ for some $0 < q_1 < 1 < q_2$. Ordering on $\mathbb{R}$ going from the B-arm preimage at $+\infty$ past $x_R = 1$ toward $x_T = 0$: $1 < q_2$, then wrapping through the T-arm side: $q_1 < 1$. So
+
+$$f'(z) \;=\; C\;\frac{\sqrt{(q_1^2 - z^2)(z^2 - q_2^2)}}{(z^2 - 1)\,z}.$$
+
+With the principal-branch $\sqrt{\cdot}$ (as used by Julia's `sqrt(complex(...))`) applied to the product $(q_1^2 - z^2)(z^2 - q_2^2)$, the $z=0$ pole has the expected T-arm residue; no extra branch gymnastics needed for the implementation.
+
+**Residue conditions.** At the four arm preimages:
+
+- **$z = 1$ (R arm, $w_R = 1$, $\sigma_R = +1$):** $\operatorname{Res} = C\sqrt{(1-q_1^2)(q_2^2-1)}/2 = 1/\pi$.
+- **$z = 0$ (T arm, $w_T = \ell$, $\sigma_T = -i$):** $\operatorname{Res} = -iC\,q_1 q_2 = -i\ell/\pi$.
+- **$z = \infty$ (B arm, $w_B = \ell$, $\sigma_B = -i$):** $\operatorname{Res} = -iC = -i\ell/\pi$.
+- **$z = -1$ (L arm):** same magnitude as $z=1$ by the horizontal $\mathbb{Z}_2$ symmetry.
+
+The $\mathbb{Z}_2$ of the UHP preimage configuration gives $\sigma_L = \sigma_R = +1$ in this codebase's convention (both residues at $\pm 1$ come out $+1/\pi$ when approached from UHP — the sign flip from $z \to -z$ relates UHP values to LHP values, not UHP-approach residues). This matches the T-shape convention in `src/LocalCoordinates.jl`.
+
+**Closed-form solution.** From the three residue equations:
+
+- $z = \infty$: $C = \ell/\pi$.
+- $z = 0$ (using $C$): $q_1 q_2 = 1$.
+- $z = 1$ (using $C$ and $q_2 = 1/q_1$): $(1 - q_1^2)/q_1 = 2/\ell$, a quadratic in $q_1$.
+
+Solving:
+
+$$\boxed{\quad q_1(\ell) = \frac{\sqrt{1+\ell^2}-1}{\ell},\qquad q_2(\ell) = \frac{\sqrt{1+\ell^2}+1}{\ell} = \frac{1}{q_1},\qquad C(\ell) = \frac{\ell}{\pi}.\quad}$$
+
+Limits: $\ell \to 0$ gives $q_1 \to \ell/2, q_2 \to 2/\ell$ (corners collapse with vertical arms); $\ell \to \infty$ gives $q_1, q_2 \to 1$ (corners collapse onto $\pm 1$ with horizontal arms). At $\ell = 1$: $q_1 = \sqrt 2 - 1$, $q_2 = \sqrt 2 + 1$, $C = 1/\pi$.
+
+**Implementation.** `src/SCMap.jl` provides `SCParamsCross` and `compute_sc_params_cross(ℓ)`, plus `fprime_exact_cross(z, sc)`. Tests in `test/test_scmap_cross.jl` verify closed-form values, algebraic invariants ($q_1 q_2 = 1$, $C = \ell/\pi$), limits, the residue conditions, and the horizontal $\mathbb{Z}_2$ ($f'(-z) = -f'(z)$).
+
+**Not needed here — the elliptic structure.** §6 below notes that the cross SC map is uniformised by Jacobi $\operatorname{sn}$. That structure is useful for understanding the large-$n$ asymptotics of Neumann coefficients, but *not* required for the SC parameters themselves: the algebra closes analytically.
 
 ---
 
