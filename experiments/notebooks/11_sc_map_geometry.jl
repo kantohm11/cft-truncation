@@ -305,27 +305,224 @@ let
     plot(plts...; layout=(1, 3), size=(1500, 500))
 end
 
+# ╔═╡ f0000011-0080-0000-0000-000000000001
+md"""
+## Cross R_conv = 1 check (library end-to-end)
+
+The library now has `compute_geometry_cross(ℓ, order)` producing four
+`ArmData` entries (L, R, T, B). Each arm's `f_series` is evaluated at
+its adjacent corner ζ values; by the ρ₀ convention, the east-neighbour
+corner lands at $\xi_i = +1$ on the unit semicircle. For T and B arms
+(which see two adjacent corners within their convergence radius), the
+west-neighbour corner lands at $\xi_i = -1$. For L and R arms, the
+west corner is at distance > R_conv, so series evaluation diverges
+there — only the east-corner check is within convergence.
+"""
+
+# ╔═╡ f0000011-0081-0000-0000-000000000001
+geom_C = CFTTruncation.compute_geometry_cross(ell_demo, series_order)
+
+# ╔═╡ f0000011-0082-0000-0000-000000000001
+# Evaluate each cross arm's f_series at its adjacent (east / west) corners.
+# Returns (arm_label, corner_label, ζ, ξ).
+begin
+    qc1 = geom_C.sc.q1
+    cross_corner_data = Tuple{Symbol, String, ComplexF64, ComplexF64}[]
+    # R arm: east at z=+q1 (ζ=q1-1), west at z=+q2 (ζ=q2-1, OUTSIDE R_conv).
+    for (lbl, z_c) in [("east +q1", qc1), ("west +q2", geom_C.sc.q2)]
+        ζ = complex(z_c - 1.0)
+        ξ = eval_series(geom_C.arms.R.f_series, ζ)
+        push!(cross_corner_data, (:R, lbl, ζ, ξ))
+    end
+    # L arm: east at z=-q1 (ζ=1-q1), west at z=-q2 (ζ=1-q2, OUTSIDE R_conv).
+    for (lbl, z_c) in [("east -q1", -qc1), ("west -q2", -geom_C.sc.q2)]
+        ζ = complex(z_c - (-1.0))
+        ξ = eval_series(geom_C.arms.L.f_series, ζ)
+        push!(cross_corner_data, (:L, lbl, ζ, ξ))
+    end
+    # T arm: east at z=+q1 (ζ=+q1), west at z=-q1 (ζ=-q1). Both within R_conv.
+    for (lbl, ζ_val) in [("east +q1", +qc1), ("west -q1", -qc1)]
+        ξ = eval_series(geom_C.arms.T.f_series, complex(ζ_val))
+        push!(cross_corner_data, (:T, lbl, complex(ζ_val), ξ))
+    end
+    # B arm: local coord u = 1/z. East corner at u=1/q2=q1, west at u=-q1.
+    for (lbl, u_val) in [("east u=+q1", +qc1), ("west u=-q1", -qc1)]
+        ξ = eval_series(geom_C.arms.B.f_series, complex(u_val))
+        push!(cross_corner_data, (:B, lbl, complex(u_val), ξ))
+    end
+    cross_corner_data
+end
+
+# ╔═╡ f0000011-0083-0000-0000-000000000001
+let
+    lines = ["Cross R_conv check (ℓ=$(ell_demo), order=$(series_order)):"]
+    push!(lines, @sprintf("  %-4s %-12s %-32s %-10s",
+        "arm", "corner", "ξ = f_i(ζ)", "|ξ|"))
+    push!(lines, repeat("-", 70))
+    for (arm, lbl, ζ, ξ) in cross_corner_data
+        push!(lines, @sprintf("  %-4s %-12s (%+11.5e %+11.5ei) %10.4e",
+            string(arm), lbl, real(ξ), imag(ξ), abs(ξ)))
+    end
+    Base.Text(join(lines, "\n"))
+end
+
+# ╔═╡ f0000011-0084-0000-0000-000000000001
+# Plot: unit circle + corner positions in ξ-plane, per arm.
+let
+    plts = Plots.Plot[]
+    for arm_name in (:L, :R, :T, :B)
+        p = plot(; aspect_ratio=:equal, xlims=(-1.3, 1.3), ylims=(-1.3, 1.3),
+                  xlabel="Re ξ", ylabel="Im ξ",
+                  title="ξ_$(arm_name) patch (ℓ=$(ell_demo))",
+                  legend=:bottomleft, legendfontsize=7)
+        θ = range(0, π; length=200)
+        plot!(p, cos.(θ), sin.(θ); color=:black, linewidth=1.5, label="|ξ|=1")
+        plot!(p, [-1, 1], [0, 0]; color=:black, linewidth=1.5, label="")
+        scatter!(p, [0], [0]; color=:blue, markersize=6, label="arm ∞ (ξ=0)")
+        # Plot only the corners within convergence (magnitude < ~1.1).
+        xs_c = Float64[]; ys_c = Float64[]; lbls_c = String[]
+        for (arm_l, lbl, ζ, ξ) in cross_corner_data
+            arm_l == arm_name || continue
+            abs(ξ) > 2.0 && continue
+            push!(xs_c, real(ξ)); push!(ys_c, imag(ξ)); push!(lbls_c, lbl)
+        end
+        scatter!(p, xs_c, ys_c; color=:red, markersize=7,
+                 label="corner ξ_i")
+        push!(plts, p)
+    end
+    plot(plts...; layout=(2, 2), size=(900, 900))
+end
+
+# ╔═╡ f0000011-0090-0000-0000-000000000001
+md"""
+## $g_i$ preimage in the $z$-plane: $g_i(|\xi|=1-\varepsilon)$
+
+For each arm $i$, the inverse local coordinate $g_i$ maps a
+neighbourhood of the origin in $\xi$-space back to a neighbourhood of
+$x_i$ in $z$-space. The **preimage of the unit semicircle**
+$\{|\xi|=1-\varepsilon\}$ under $g_i$ is a curve in $z$-space that
+encloses $x_i$ and approaches the adjacent corners as $\varepsilon \to 0$
+(since those corners sit at $|\xi| = 1$).
+
+Below: for each ℓ, trace the preimages of $\xi = (1-\varepsilon) e^{i\theta}$
+(upper semicircle, $\theta \in [0, \pi]$) for all arms, plot in the
+$z$-plane, and mark the arm preimages $x_i$ and the corner preimages
+$p_j$.
+
+Computation is library end-to-end: directly sum the `g_series`
+stored in `ArmData`, extend the result with $x_i$ for finite arms
+(or $z = 1/u$ for the B arm in the cross).
+"""
+
+# ╔═╡ f0000011-0091-0000-0000-000000000001
+"""Trace g_i on the upper half of |ξ|=r under the Pluto-safe assumption
+   that the series has val=1 and converges for |ξ| ≤ 1. For the B arm
+   (`is_B_arm=true`), apply z = 1/u after summing the series."""
+function trace_gi_preimage(arm::CFTTruncation.ArmData; r=0.999, n=400, is_B_arm=false)
+    θs = range(0, π; length=n)
+    zs = ComplexF64[]
+    for θ in θs
+        ξ = r * cis(θ)
+        # g_series(ξ) — series in ξ with val=1, gives z - x_i (or u - 0 for B).
+        ζ = CFTTruncation.evaluate(arm.g_series, ξ)
+        z = is_B_arm ? 1 / ζ : arm.x + ζ
+        push!(zs, z)
+    end
+    zs
+end
+
+# ╔═╡ f0000011-0092-0000-0000-000000000001
+"""T-shape g_i preimage plot for a given ℓ."""
+function plot_T_preimages(ℓ; r=0.999, zlim=5.0)
+    geom = CFTTruncation.compute_geometry(ℓ, series_order)
+    p = plot(; aspect_ratio=:equal, xlims=(-zlim, zlim), ylims=(-0.5, zlim),
+              xlabel="Re z", ylabel="Im z",
+              title="T-shape: g_i(|ξ|=1-ε) preimages, ℓ=$ℓ",
+              legend=:topright, legendfontsize=7)
+    plot!(p, [-zlim, zlim], [0, 0]; color=:gray, linewidth=1, alpha=0.5, label="")
+    colors = Dict(:L=>:blue, :R=>:red, :T=>:green)
+    for name in (:L, :R, :T)
+        arm = getfield(geom.arms, name)
+        zs = trace_gi_preimage(arm; r=r)
+        plot!(p, real.(zs), imag.(zs); color=colors[name], linewidth=1.8,
+              label="g_$name")
+    end
+    scatter!(p, [geom.arms.L.x, geom.arms.T.x, geom.arms.R.x], [0, 0, 0];
+             color=:black, markersize=8, marker=:xcross, label="x_i")
+    scatter!(p, [-geom.sc.p, +geom.sc.p], [0, 0];
+             color=:orange, markersize=7, marker=:diamond, label="corners ±p")
+    p
+end
+
+# ╔═╡ f0000011-0093-0000-0000-000000000001
+let
+    plts = [plot_T_preimages(ℓ; zlim=4.0) for ℓ in (0.5, 1.0, 2.0)]
+    plot(plts...; layout=(1, 3), size=(1500, 500))
+end
+
+# ╔═╡ f0000011-0094-0000-0000-000000000001
+"""Cross g_i preimage plot for a given ℓ (all 4 arms, including B via u = 1/z)."""
+function plot_cross_preimages(ℓ; r=0.999, zlim=5.0)
+    geom = CFTTruncation.compute_geometry_cross(ℓ, series_order)
+    p = plot(; aspect_ratio=:equal, xlims=(-zlim, zlim), ylims=(-0.5, zlim),
+              xlabel="Re z", ylabel="Im z",
+              title="Cross: g_i(|ξ|=1-ε) preimages, ℓ=$ℓ",
+              legend=:topright, legendfontsize=7)
+    plot!(p, [-zlim, zlim], [0, 0]; color=:gray, linewidth=1, alpha=0.5, label="")
+    colors = Dict(:L=>:blue, :R=>:red, :T=>:green, :B=>:purple)
+    for name in (:L, :R, :T, :B)
+        arm = getfield(geom.arms, name)
+        zs = trace_gi_preimage(arm; r=r, is_B_arm=(name == :B))
+        # Skip points that wander outside the plot window (B arm preimage
+        # at small |u| gives |z| → ∞).
+        mask = abs.(zs) .< zlim * 2
+        plot!(p, real.(zs[mask]), imag.(zs[mask]);
+              color=colors[name], linewidth=1.8, label="g_$name")
+    end
+    # Mark finite arm preimages
+    scatter!(p, [geom.arms.L.x, geom.arms.T.x, geom.arms.R.x], [0, 0, 0];
+             color=:black, markersize=8, marker=:xcross, label="x_L, x_T, x_R")
+    # B arm is at infinity — no marker to draw.
+    # Corner preimages ±q1, ±q2
+    q1 = geom.sc.q1; q2 = geom.sc.q2
+    scatter!(p, [-q2, -q1, q1, q2], [0, 0, 0, 0];
+             color=:orange, markersize=7, marker=:diamond, label="corners ±q1, ±q2")
+    p
+end
+
+# ╔═╡ f0000011-0095-0000-0000-000000000001
+let
+    plts = [plot_cross_preimages(ℓ; zlim=4.0) for ℓ in (0.5, 1.0, 2.0)]
+    plot(plts...; layout=(1, 3), size=(1500, 500))
+end
+
 # ╔═╡ f0000011-0070-0000-0000-000000000001
 md"""
 ## Notes
 
-1. The **R_conv check above** validates the library's full pipeline
-   for the T-shape: SC parameters → $f'$ Laurent → $\rho_0$ → $f_i$
-   series → $\xi_i$ at corners. All four T-shape corner evaluations
-   should give $|\xi_i| \approx 1$ (the "R_conv = 1" property).
+1. The **R_conv checks** validate the library's full pipeline for both
+   T-shape and cross: SC parameters → $f'$ Laurent → $\rho_0$ → $f_i$
+   series → $\xi_i$ at corners. All adjacent corners should give
+   $|\xi_i| \approx 1$ within ~1e-3 at order 30 (slow convergence
+   at the series boundary — higher order tightens this).
 
-2. The **image plots** below are *not* end-to-end: they use direct
-   path integration of a re-branched $f'$, which is a standalone
-   geometric check but doesn't touch the series / Neumann / Ward
-   recursion stack.
+2. The **$g_i$ preimage plots** are the clearest visual of the local
+   coordinate patches: each curve encloses its arm preimage $x_i$
+   and stretches out to the adjacent corner preimages $p_j$, which
+   sit on $|\xi|=1$. Increasing $\varepsilon$ (shrinking $r$)
+   retracts the curves toward $x_i$.
 
-3. The **cross R_conv check is not yet possible** — the library's
-   `compute_geometry` is T-shape only; extending it to the 4-arm
-   cross (with four local $f_i$'s and a $\rho_0$ convention that
-   places all four corners on appropriate unit circles) is
-   deferred to the cross pipeline phase
-   (see `truncation_strategies.md` §5–6 and
-   `conformal_map_cross.md`).
+3. The **image plots** (earlier section) are *not* end-to-end: they
+   use direct path integration of a re-branched $f'$. The library
+   uses local Laurent expansions for its downstream pipeline and
+   never path-integrates globally, so the principal-of-product
+   branch is fine in-pipeline but breaks the viz.
+
+4. **Cross downstream pipeline** (4×4 Neumann matrix, 4-arm
+   recursion, primary vertex, cache shape tag) is the next step —
+   see `truncation_strategies.md` §5–6. It'll need to handle
+   $x_B = \infty$ (the B arm stores `x = Inf` and uses the local
+   coordinate $u = 1/z$).
 """
 
 # ╔═╡ Cell order:
@@ -355,4 +552,15 @@ md"""
 # ╠═f0000011-0051-0000-0000-000000000001
 # ╟─f0000011-0060-0000-0000-000000000001
 # ╠═f0000011-0061-0000-0000-000000000001
+# ╟─f0000011-0080-0000-0000-000000000001
+# ╠═f0000011-0081-0000-0000-000000000001
+# ╠═f0000011-0082-0000-0000-000000000001
+# ╠═f0000011-0083-0000-0000-000000000001
+# ╠═f0000011-0084-0000-0000-000000000001
+# ╟─f0000011-0090-0000-0000-000000000001
+# ╠═f0000011-0091-0000-0000-000000000001
+# ╠═f0000011-0092-0000-0000-000000000001
+# ╠═f0000011-0093-0000-0000-000000000001
+# ╠═f0000011-0094-0000-0000-000000000001
+# ╠═f0000011-0095-0000-0000-000000000001
 # ╟─f0000011-0070-0000-0000-000000000001
