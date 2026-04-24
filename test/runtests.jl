@@ -8,6 +8,7 @@ using CFTTruncation
     include("test_localcoordinates.jl")
     include("test_localcoordinates_cross.jl")
     include("test_neumann.jl")
+    include("test_neumann_cross.jl")
     include("test_fockspace.jl")
     include("test_jmatrices.jl")
     include("test_bpz.jl")

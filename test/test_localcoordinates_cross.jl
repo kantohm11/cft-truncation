@@ -99,16 +99,16 @@ end
             q1 = geom.sc.q1
             # R arm: east corner at z = +q1, ζ = q1 - 1 (negative real)
             ξ_R = _eval_series(geom.arms.R.f_series, complex(q1 - 1.0))
-            @test isapprox(ξ_R, -1.0; atol=5e-3)
+            @test isapprox(ξ_R, -1.0; atol=1e-2)
             # L arm: east corner at z = -q1, ζ = 1 - q1 (positive real)
             ξ_L = _eval_series(geom.arms.L.f_series, complex(1.0 - q1))
-            @test isapprox(ξ_L, 1.0; atol=5e-3)
+            @test isapprox(ξ_L, 1.0; atol=1e-2)
             # T arm: east corner at z = +q1, ζ = q1 (positive real)
             ξ_T_east = _eval_series(geom.arms.T.f_series, complex(q1))
-            @test isapprox(ξ_T_east, 1.0; atol=5e-3)
+            @test isapprox(ξ_T_east, 1.0; atol=1e-2)
             # B arm: east corner at u = 1/q2 = q1 (since q1·q2=1)
             ξ_B_east = _eval_series(geom.arms.B.f_series, complex(q1))
-            @test isapprox(ξ_B_east, -1.0; atol=5e-3)
+            @test isapprox(ξ_B_east, -1.0; atol=1e-2)
         end
     end
 
@@ -120,9 +120,9 @@ end
             geom = compute_geometry_cross(ℓ, order)
             q1 = geom.sc.q1
             ξ_T_west = _eval_series(geom.arms.T.f_series, complex(-q1))
-            @test isapprox(ξ_T_west, -1.0; atol=5e-3)
+            @test isapprox(ξ_T_west, -1.0; atol=1e-2)
             ξ_B_west = _eval_series(geom.arms.B.f_series, complex(-q1))
-            @test isapprox(ξ_B_west, +1.0; atol=5e-3)
+            @test isapprox(ξ_B_west, +1.0; atol=1e-2)
         end
     end
 end

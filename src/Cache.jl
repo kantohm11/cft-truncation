@@ -24,8 +24,24 @@ using JLD2
 #   - FockBasis state ordering or normalization (FockSpace.jl)
 #   - modified_vertex propagator factor formula
 # ----------------------------------------------------------------
-const CACHE_VERSION = "v5_rho0_uhp_upper_semidisc"
+const CACHE_VERSION = "v7_rho0_cross_simpson"
 # History:
+#   v7_rho0_cross_simpson — cross ρ₀ now computed by Simpson integration with
+#                            t² substitution at the √-branch endpoint + pole
+#                            subtraction at the arm-preimage endpoint, replacing
+#                            the slowly-converging N=41 series truncation at
+#                            |ζ|=R_conv. Accuracy ≈ 1e-7 at npts=20000,
+#                            vs the previous 2e-4 truncation error. The D₄
+#                            equality |N^{II}_{m,k}| is now visible at ~2e-7
+#                            precision for k ≥ 1 entries at ℓ=1 (k=0 shows
+#                            genuine zero-mode anomaly).
+#   v6_cross_neumann — added 4-arm Neumann coefficients for cross geometry
+#                       (compute_neumann(::GeometryCross, m_max) returning
+#                       NeumannDataCross with 16 matrices). Refactored
+#                       _compute_F_polys to take ArmData; extended
+#                       _compose_Fm_with_g with two B-arm branches
+#                       (B source and B target, both handling x_B = ∞ via
+#                       u = 1/z). No behaviour change to the T-shape path.
 #   v5_rho0_uhp_upper_semidisc — ρ₀ conventions unified so f_i maps UHP of z
 #                                 to the upper semidisc of ξ on every arm:
 #                                 removed +i shift from T-shape R and L;
