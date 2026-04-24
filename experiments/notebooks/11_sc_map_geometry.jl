@@ -415,18 +415,19 @@ stored in `ArmData`, extend the result with $x_i$ for finite arms
 """
 
 # ╔═╡ f0000011-0091-0000-0000-000000000001
-"""Trace g_i on the upper half of |ξ|=r under the Pluto-safe assumption
-   that the series has val=1 and converges for |ξ| ≤ 1. For the B arm
-   (`is_B_arm=true`), apply z = 1/u after summing the series."""
+"""Trace g_i(|ξ|=r) over the upper ξ-semicircle.
+
+Each arm's f_i maps UHP of z onto the upper semidisc of ξ (by the ρ₀
+convention in LocalCoordinates.jl — α_i real positive for finite arms,
+real negative for the B arm so that z = 1/u's UHP↔LHP flip is undone).
+So we always sample ξ = r·e^{iθ}, θ ∈ (0, π)."""
 function trace_gi_preimage(arm::CFTTruncation.ArmData; r=0.999, n=400, is_B_arm=false)
-    θs = range(0, π; length=n)
+    unwrap_z(ζ) = is_B_arm ? 1 / ζ : arm.x + ζ
     zs = ComplexF64[]
-    for θ in θs
+    for θ in range(0, π; length=n)
         ξ = r * cis(θ)
-        # g_series(ξ) — series in ξ with val=1, gives z - x_i (or u - 0 for B).
         ζ = CFTTruncation.evaluate(arm.g_series, ξ)
-        z = is_B_arm ? 1 / ζ : arm.x + ζ
-        push!(zs, z)
+        push!(zs, unwrap_z(ζ))
     end
     zs
 end
@@ -461,9 +462,14 @@ let
 end
 
 # ╔═╡ f0000011-0094-0000-0000-000000000001
-"""Cross g_i preimage plot for a given ℓ (all 4 arms, including B via u = 1/z)."""
-function plot_cross_preimages(ℓ; r=0.999, zlim=5.0)
+"""Cross g_i preimage plot for a given ℓ (all 4 arms, including B via u = 1/z).
+If `zlim` is `nothing`, auto-size to fit the B arm (the largest preimage)."""
+function plot_cross_preimages(ℓ; r=0.999, zlim=nothing)
     geom = CFTTruncation.compute_geometry_cross(ℓ, series_order)
+    if zlim === nothing
+        zs_B = trace_gi_preimage(geom.arms.B; r=r, is_B_arm=true)
+        zlim = max(4.0, 1.1 * maximum(imag.(zs_B)))
+    end
     p = plot(; aspect_ratio=:equal, xlims=(-zlim, zlim), ylims=(-0.5, zlim),
               xlabel="Re z", ylabel="Im z",
               title="Cross: g_i(|ξ|=1-ε) preimages, ℓ=$ℓ",
@@ -492,7 +498,7 @@ end
 
 # ╔═╡ f0000011-0095-0000-0000-000000000001
 let
-    plts = [plot_cross_preimages(ℓ; zlim=4.0) for ℓ in (0.5, 1.0, 2.0)]
+    plts = [plot_cross_preimages(ℓ) for ℓ in (0.5, 1.0, 2.0)]
     plot(plts...; layout=(1, 3), size=(1500, 500))
 end
 

@@ -121,22 +121,24 @@ f(z) = ∫f'(z)dz has one free additive constant C. The ρ₀ for each arm
 is chosen so that the reflex corners z = ±p land on the unit semicircle
 |ξ_i| = 1, giving Neumann series R_conv = 1 for all arms.
 
-- R arm: ρ₀ = ρ₀^R_num + i, where ρ₀^R_num is real from numerical integration
-  targeting Re(f(p)) = 0. The +i shift puts ξ_R(p) = +1 (not -1), removing
-  the (-1)^N sign from the propagator obtained by |B^open⟩ contraction.
-- L arm: ρ₀ = ρ₀^R_num + i (same value as R). The Z₂ gives ρ₀^L_Z2 = ρ₀^R + ℓ + i,
-  but ξ_L = exp(π(f - ℓ)) absorbs the ℓ, leaving ρ₀^L = ρ₀^R_num + i.
-  Result: α_L = α_R (equal, both negative), ξ_L(-p) = -1.
-  Z₂ manifests as N^{LL}_{mk} = (-1)^{m+k} N^{RR}_{mk}.
-- T arm: ρ₀ targets f(p) = 0 from the T expansion, giving ξ_T(±p) = ±1.
+Orientation convention: ρ₀ is chosen so that f_i maps UHP of z to the
+upper semidisc of ξ (α_i real positive for all three arms).
+This forces the adjacent reflex corner to ξ_R(p) = −1 for the R arm
+and ξ_L(−p) = +1 for the L arm (the "mouth-at-corner" integration
+constant ρ₀^R_num from singularity-subtracted numerical integration
+already gives α > 0 real with no extra shift).
+
+- R arm: ρ₀ = ρ₀^R_num (real, from numerical integration). α_R > 0 real,
+  ξ_R(p) = −1.
+- L arm: ρ₀ = ρ₀^R_num (same value). α_L > 0 real, ξ_L(−p) = +1.
+- T arm: ρ₀ targets f(p) = 0 so that ξ_T(p) = +1, ξ_T(−p) = −1;
+  α_T > 0 real.
 """
 function _compute_rho0(sc::SCParams, label::Symbol)
     if label == :R
-        # ρ₀^R_num + i: shift by +i puts ξ_R(p) = +1, giving α_R = α_L.
-        return ComplexF64(_compute_rho0_R(sc)) + im
+        return ComplexF64(_compute_rho0_R(sc))
     elseif label == :L
-        # ρ₀^L = ρ₀^R_num + i: Z₂ relation (ℓ absorbed by ξ_L = exp(π(f-ℓ))).
-        return ComplexF64(_compute_rho0_R(sc)) + im
+        return ComplexF64(_compute_rho0_R(sc))
     else
         return _compute_rho0_T(sc)
     end
@@ -382,13 +384,17 @@ Build the four-arm cross-shape geometry: SC parameters, local
 coordinate maps `f_i`, their inverses `g_i`, and the Laurent
 expansions of `f'` (or `g'` for B arm) around each arm preimage.
 
-The ρ₀ for each arm is chosen so that the arm's east-neighbour
-corner lands at ξ_i = +1 on the unit semicircle. By the horizontal
-Z₂ and R_conv=1 geometric consistency, the west-neighbour corner
-automatically sits at ξ_i = -1. See
-`docs/design/conformal_map_cross.md` §1.4 for the parametrisation
+The ρ₀ for each arm is chosen so that f_i maps UHP of z to the upper
+semidisc of ξ (α_i is real positive for L and T, real negative for B
+to compensate the UHP↔LHP flip from u = 1/z; the R arm has σ_R = +1
+so "α_R real positive" forces east corner to ξ = −1 instead of +1).
+See `docs/design/conformal_map_cross.md` §1.4 for the parametrisation
 and `docs/design/finite_entanglement_scaling.md` for the downstream
 use.
+
+Adjacent-corner ξ values (all on the unit circle):
+  ξ_L(1−q₁) = +1,   ξ_R(q₁−1) = −1,
+  ξ_T(±q₁) = ±1,    ξ_B(±q₁) = ∓1.
 """
 function compute_geometry_cross(ℓ::Real, order::Int)
     sc = compute_sc_params_cross(ℓ)
@@ -467,19 +473,22 @@ function _compute_rho0_cross(sc::SCParamsCross, label::Symbol)
     if label == :R
         fp = _expand_fprime_cross_at_R(sc, N)
         ζ_e = ComplexF64(q1 - 1.0)     # negative real
-        target_reg = im - log(1 - q1) / π    # ρ(ζ_e) = i − ln(1−q1)/π  for f(ζ_e) = 2i
+        target_reg = -log(1 - q1) / π        # f(ζ_e) = i, ξ_R = −1, α_R > 0 real
     elseif label == :L
         fp = _expand_fprime_cross_at_L(sc, N)
         ζ_e = ComplexF64(1.0 - q1)     # positive real
-        target_reg = log(1 - q1) / π         # ρ(ζ_e) = ln(1−q1)/π       for f(ζ_e) = 0
+        target_reg = log(1 - q1) / π         # f(ζ_e) = 0, ξ_L = +1, α_L > 0 real
     elseif label == :T
         fp = _expand_fprime_cross_at_T(sc, N)
         ζ_e = ComplexF64(q1)
-        target_reg = (im * ℓ / π) * log(q1)  # ρ(q1) = iℓ ln(q1)/π       for f(q1) = 0
+        target_reg = (im * ℓ / π) * log(q1)  # f(q1) = 0, ξ_T = +1, α_T > 0 real
     elseif label == :B
         fp = _expand_gprime_cross_at_B(sc, N)
         ζ_e = ComplexF64(q1)
-        target_reg = -(im * ℓ / π) * log(q1) # ρ(q1) = −iℓ ln(q1)/π      for g(q1) = 0
+        # z = 1/u flips UHP↔LHP, so α_B must be real NEGATIVE to give
+        # UHP-of-z → upper-semidisc-of-ξ. Shift ρ₀ by −ℓ (equivalently,
+        # ξ_B(east) = −1 instead of +1).
+        target_reg = -(im * ℓ / π) * log(q1) - ℓ
     else
         error("Unknown cross arm label: $label")
     end

@@ -74,8 +74,9 @@ using CFTTruncation: compute_geometry, compute_sc_params, fprime_exact,
         end
     end
 
-    # ξ_R(p) = +1 (ρ₀^R shifted by +i to fix propagator sign).
-    # ξ_L(-p) = -1 (L arm ρ₀ unchanged; Z₂ gives α_L = α_R).
+    # Orientation convention: f_i maps UHP → upper semidisc of ξ for every arm
+    # (α_i real positive). This puts ξ_R(p) = −1, ξ_L(−p) = +1.
+    # T arm keeps ξ_T(±p) = ±1 from the f(p) = 0 target.
     @testset "3.6 Corners at unit semicircle (R_conv = 1)" begin
         for ℓ in [0.5, 1.0, 2.0]
             geom = compute_geometry(ℓ, 40)
@@ -92,9 +93,9 @@ using CFTTruncation: compute_geometry, compute_sc_params, fprime_exact,
             @test abs(ξ_Tp) ≈ 1  atol=5e-2
             @test abs(ξ_Tm) ≈ 1  atol=5e-2
 
-            # Sign: R corner at +1, L corner at -1, T corners at ±1
-            @test real(ξ_R) ≈ +1  atol=5e-2
-            @test real(ξ_L) ≈ -1  atol=5e-2
+            # Sign: R corner at −1, L corner at +1, T corners at ±1
+            @test real(ξ_R) ≈ -1  atol=5e-2
+            @test real(ξ_L) ≈ +1  atol=5e-2
             @test real(ξ_Tp) ≈ +1  atol=5e-2
             @test real(ξ_Tm) ≈ -1  atol=5e-2
         end

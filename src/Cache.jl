@@ -24,8 +24,15 @@ using JLD2
 #   - FockBasis state ordering or normalization (FockSpace.jl)
 #   - modified_vertex propagator factor formula
 # ----------------------------------------------------------------
-const CACHE_VERSION = "v4_rho0_R_corner_plus1"
+const CACHE_VERSION = "v5_rho0_uhp_upper_semidisc"
 # History:
+#   v5_rho0_uhp_upper_semidisc — ρ₀ conventions unified so f_i maps UHP of z
+#                                 to the upper semidisc of ξ on every arm:
+#                                 removed +i shift from T-shape R and L;
+#                                 cross R uses target_reg = −log(1−q1)/π;
+#                                 cross B uses target_reg = −(iℓ/π) log(q1) − ℓ.
+#                                 Reintroduces (-1)^N sign in the propagator
+#                                 obtained by |B^open⟩ contraction (vs v4).
 #   v4_rho0_R_corner_plus1 — ρ₀^R shifted by +i so ξ_R(p) = +1, α_R = α_L.
 #                             Removes (-1)^N sign from propagator.
 #   v3_rho0_unit_circle — ρ₀^T targets corners at |ξ_T| = ±1 (R_conv = 1),
