@@ -21,7 +21,7 @@ include("Recursion.jl")
 # Lower-level types (Geometry, NeumannData, FockBasis, TruncLaurent, ...)
 # remain reachable via the qualified `CFTTruncation.X` form.
 export TruncationSpec, CompactBosonCFT
-export compute_vertex, vertex_sweep, charge_block, VertexData
+export compute_vertex, vertex_sweep, charge_block, VertexData, VertexDataCross
 export set_cache_dir
 export conformal_dim
 export modified_vertex, modified_vertex_cache, build_propagator_factor
