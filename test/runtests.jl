@@ -17,5 +17,6 @@ using CFTTruncation
     include("test_compact_boson.jl")
     include("test_recursion.jl")
     include("test_recursion_cross.jl")
+    include("test_cache.jl")
     # include("test_integration.jl")
 end

@@ -24,8 +24,16 @@ using JLD2
 #   - FockBasis state ordering or normalization (FockSpace.jl)
 #   - modified_vertex propagator factor formula
 # ----------------------------------------------------------------
-const CACHE_VERSION = "v7_rho0_cross_simpson"
+const CACHE_VERSION = "v8_shape_tag"
 # History:
+#   v8_shape_tag — cache filename now embeds a shape tag (T or cross) so
+#                   the two vertex types coexist on disk without collision.
+#                   This is a BREAKING change: prior on-disk cache files
+#                   (v7 and below) will not be loaded — they are silently
+#                   ignored, and `compute_vertex(...; cache=:auto)` will
+#                   recompute and write fresh files at v8 paths.
+#                   T-shape filename: vertex_v8_shape_tag_T_R..._so..jld2
+#                   Cross filename:   vertex_v8_shape_tag_cross_R..._so..jld2
 #   v7_rho0_cross_simpson — cross ρ₀ now computed by Simpson integration with
 #                            t² substitution at the √-branch endpoint + pole
 #                            subtraction at the arm-preimage endpoint, replacing
@@ -75,13 +83,15 @@ function set_cache_dir(dir::String)
     dir
 end
 
-function _cache_path(cft::CompactBosonCFT, ell::Float64, series_order::Int)
+function _cache_path(cft::CompactBosonCFT, ell::Float64, series_order::Int;
+                     shape::Symbol = :T)
     dir = _CACHE_DIR[]
     dir === nothing && error(
         "Cache directory not set. Call CFTTruncation.set_cache_dir(\"path\") first.")
     R = cft.R; hb = cft.trunc.h_bond; hp = cft.trunc.h_phys
+    shape_tag = String(shape)
     joinpath(dir,
-        "vertex_$(CACHE_VERSION)_R$(R)_hb$(hb)_hp$(hp)_ell$(ell)_so$(series_order).jld2")
+        "vertex_$(CACHE_VERSION)_$(shape_tag)_R$(R)_hb$(hb)_hp$(hp)_ell$(ell)_so$(series_order).jld2")
 end
 
 function _load_vertex(path::String)

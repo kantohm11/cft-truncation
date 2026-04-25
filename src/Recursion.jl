@@ -15,41 +15,65 @@ struct VertexData
 end
 
 """
-    compute_vertex(cft::CompactBosonCFT, ell::Real; series_order=20, cache=:auto) -> VertexData
+    compute_vertex(cft::CompactBosonCFT, ell::Real; shape=:T, series_order=20, cache=:auto) -> VertexData | VertexDataCross
 
-Compute the T-vertex for the given fixed CFT data at the given ℓ.
+Compute the vertex (T-shape or cross) for the given CFT data at the given ℓ.
+
+`shape`:
+- `:T` (default): 3-arm T-shape vertex; returns `VertexData`.
+- `:cross`: 4-arm cross vertex; returns `VertexDataCross`.
 
 Cache modes (requires `set_cache_dir(...)` first):
 - `:auto` (default): load from disk if cached, else compute + save.
 - `:off`: no disk IO, always compute fresh.
 - `:regenerate`: always compute fresh, overwrite cache file.
+
+The cache filename embeds the shape tag, so T-shape and cross caches
+do not collide on disk. Bumping `CACHE_VERSION` invalidates older
+cache files (they're silently ignored and recomputed).
 """
 function compute_vertex(cft::CompactBosonCFT, ell::Real;
-                        series_order::Int=20, cache::Symbol=:auto)
+                        shape::Symbol = :T,
+                        series_order::Int = 20, cache::Symbol = :auto)
+    shape in (:T, :cross) || error("compute_vertex: shape must be :T or :cross, got :$shape")
     ell_f = Float64(ell)
     use_cache = cache != :off && _CACHE_DIR[] !== nothing
 
-    # Try loading (only in :auto mode)
-    if use_cache && cache == :auto
-        path = _cache_path(cft, ell_f, series_order)
-        if isfile(path)
-            vertex = _load_vertex(path)
-            geom = compute_geometry(ell_f, series_order)
-            neumann = compute_neumann(geom, cft.m_max)
-            return VertexData(cft, vertex, geom, neumann, ell_f)
+    if shape == :T
+        if use_cache && cache == :auto
+            path = _cache_path(cft, ell_f, series_order; shape=:T)
+            if isfile(path)
+                vertex = _load_vertex(path)
+                geom = compute_geometry(ell_f, series_order)
+                neumann = compute_neumann(geom, cft.m_max)
+                return VertexData(cft, vertex, geom, neumann, ell_f)
+            end
         end
+        geom = compute_geometry(ell_f, series_order)
+        neumann = compute_neumann(geom, cft.m_max)
+        vd = _build_vertex(cft, geom, neumann, ell_f)
+        if use_cache
+            _save_vertex(_cache_path(cft, ell_f, series_order; shape=:T), vd.vertex)
+        end
+        return vd
+    else  # :cross
+        if use_cache && cache == :auto
+            path = _cache_path(cft, ell_f, series_order; shape=:cross)
+            if isfile(path)
+                vertex = _load_vertex(path)
+                geom = compute_geometry_cross(ell_f, series_order)
+                neumann = compute_neumann(geom, cft.m_max)
+                return VertexDataCross(cft, vertex, geom, neumann, ell_f)
+            end
+        end
+        geom = compute_geometry_cross(ell_f, series_order)
+        neumann = compute_neumann(geom, cft.m_max)
+        vd = _build_vertex_cross(cft, geom, neumann, ell_f)
+        if use_cache
+            _save_vertex(_cache_path(cft, ell_f, series_order; shape=:cross), vd.vertex)
+        end
+        return vd
     end
-
-    # Compute fresh
-    geom = compute_geometry(ell_f, series_order)
-    neumann = compute_neumann(geom, cft.m_max)
-    vd = _build_vertex(cft, geom, neumann, ell_f)
-
-    # Save (in :auto or :regenerate mode)
-    if use_cache
-        _save_vertex(_cache_path(cft, ell_f, series_order), vd.vertex)
-    end
-    vd
 end
 
 """
@@ -69,8 +93,10 @@ end
 
 Compute vertices for all ℓ values, reusing the CFT data.
 """
-function vertex_sweep(cft::CompactBosonCFT, ells; series_order::Int=20, cache::Symbol=:auto)
-    [compute_vertex(cft, ell; series_order, cache) for ell in ells]
+function vertex_sweep(cft::CompactBosonCFT, ells;
+                      shape::Symbol = :T,
+                      series_order::Int = 20, cache::Symbol = :auto)
+    [compute_vertex(cft, ell; shape, series_order, cache) for ell in ells]
 end
 
 # Internal: actually run the recursion and assembly given all three layers.
