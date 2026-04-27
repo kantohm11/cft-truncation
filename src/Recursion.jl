@@ -54,6 +54,7 @@ function compute_vertex(cft::CompactBosonCFT, ell::Real;
         vd = _build_vertex(cft, geom, neumann, ell_f)
         if use_cache
             _save_vertex(_cache_path(cft, ell_f, series_order; shape=:T), vd.vertex)
+            write_sidecar(cft, series_order; shape = :T)
         end
         return vd
     else  # :cross
@@ -71,6 +72,7 @@ function compute_vertex(cft::CompactBosonCFT, ell::Real;
         vd = _build_vertex_cross(cft, geom, neumann, ell_f)
         if use_cache
             _save_vertex(_cache_path(cft, ell_f, series_order; shape=:cross), vd.vertex)
+            write_sidecar(cft, series_order; shape = :cross)
         end
         return vd
     end

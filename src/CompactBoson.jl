@@ -5,20 +5,59 @@ truncation. ℓ-independent — build once and reuse across an ℓ-sweep.
 """
 
 """
-    TruncationSpec(h_bond, h_phys)
-    TruncationSpec(h)               # symmetric: h_bond = h_phys = h
-    TruncationSpec(; h_bond, h_phys)
+    TruncationSpec(bond_cutoffs::Dict{Int,Int}, phys_cutoffs::Dict{Int,Int})
+    TruncationSpec(h_bond::Real, h_phys::Real; R = 1.0)
+    TruncationSpec(h::Real; R = 1.0)
+    TruncationSpec(; h_bond, h_phys, R = 1.0)
+    TruncationSpec(; bond_cutoffs, phys_cutoffs)
 
-Conformal-weight cutoff applied to the bond (L/R arms) and physical (T arm)
-state spaces. Generic across CFT families: lives here for now because
-`CompactBosonCFT` is currently the only consumer.
+Per-charge descendant-level cutoffs for the bond (L/R arms) and
+physical (T or T/B arms) state spaces. `bond_cutoffs[n] = N_max`
+means: include charge `n` with partitions of total level `≤ N_max`.
+
+Backward-compat constructors accept a uniform conformal-weight cap
+`h_max` and convert via `uniform_cutoffs(h_max, R)` (per-charge cap
+`floor(h_max − n²/(2R²))`). For backward-readability, `h_bond` and
+`h_phys` are kept as fields and set to the maximum effective h
+included in each cutoffs dict.
 """
 struct TruncationSpec
-    h_bond::Float64
-    h_phys::Float64
+    bond_cutoffs::Dict{Int, Int}
+    phys_cutoffs::Dict{Int, Int}
+    h_bond::Float64        # effective: max h included in bond
+    h_phys::Float64        # effective: max h included in phys
 end
-TruncationSpec(h::Real) = TruncationSpec(Float64(h), Float64(h))
-TruncationSpec(; h_bond::Real, h_phys::Real) = TruncationSpec(Float64(h_bond), Float64(h_phys))
+
+function TruncationSpec(bond_cutoffs::Dict{Int,Int}, phys_cutoffs::Dict{Int,Int};
+                        R::Real = 1.0)
+    R_f = Float64(R)
+    h_eff(c) = isempty(c) ? 0.0 :
+        maximum((n/R_f)^2/2 + c[n] for n in keys(c))
+    TruncationSpec(bond_cutoffs, phys_cutoffs, h_eff(bond_cutoffs), h_eff(phys_cutoffs))
+end
+
+# Uniform-h backward-compat constructors.
+function TruncationSpec(h_bond::Real, h_phys::Real; R::Real = 1.0)
+    bc = uniform_cutoffs(h_bond, R)
+    pc = uniform_cutoffs(h_phys, R)
+    TruncationSpec(bc, pc; R = R)
+end
+
+TruncationSpec(h::Real; R::Real = 1.0) = TruncationSpec(h, h; R = R)
+
+TruncationSpec(; h_bond::Union{Real,Nothing} = nothing,
+               h_phys::Union{Real,Nothing} = nothing,
+               bond_cutoffs::Union{Dict{Int,Int},Nothing} = nothing,
+               phys_cutoffs::Union{Dict{Int,Int},Nothing} = nothing,
+               R::Real = 1.0) = begin
+    if bond_cutoffs !== nothing && phys_cutoffs !== nothing
+        TruncationSpec(bond_cutoffs, phys_cutoffs; R = R)
+    elseif h_bond !== nothing && h_phys !== nothing
+        TruncationSpec(h_bond, h_phys; R = R)
+    else
+        error("TruncationSpec: provide either (bond_cutoffs, phys_cutoffs) or (h_bond, h_phys).")
+    end
+end
 
 """
     CompactBosonCFT
@@ -61,17 +100,19 @@ function CompactBosonCFT(; R::Real, c::Real=1.0,
     if trunc === nothing
         (h_bond === nothing || h_phys === nothing) &&
             error("CompactBosonCFT: provide either `trunc` or both `h_bond` and `h_phys`")
-        trunc = TruncationSpec(h_bond=h_bond, h_phys=h_phys)
+        trunc = TruncationSpec(h_bond, h_phys; R = R)
     end
 
     R_f = Float64(R)
-    basis_bond = build_fock_basis(R_f, trunc.h_bond)
-    basis_phys = build_fock_basis(R_f, trunc.h_phys)
+    basis_bond = build_fock_basis(R_f, trunc.bond_cutoffs)
+    basis_phys = build_fock_basis(R_f, trunc.phys_cutoffs)
 
     # m_max bound: largest mode index that the Ward recursion can encounter.
     # The Ward identity peels J_{-m} where m is the largest part of any
     # partition in either basis, plus a small buffer.
-    m_max = max(floor(Int, trunc.h_bond), floor(Int, trunc.h_phys)) + 2
+    max_level = max(maximum(values(trunc.bond_cutoffs); init=0),
+                    maximum(values(trunc.phys_cutoffs); init=0))
+    m_max = max_level + 2
 
     J_bond, J_bond_sp = build_J_matrices(basis_bond, m_max)
     J_phys, J_phys_sp = build_J_matrices(basis_phys, m_max)

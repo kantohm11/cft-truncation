@@ -11,6 +11,8 @@ The cache directory must be set once per session:
 """
 
 using JLD2
+using JSON
+using SHA: sha256
 
 # ----------------------------------------------------------------
 # Version tag — embedded in cache filenames for invalidation.
@@ -23,9 +25,21 @@ using JLD2
 #   - BPZ conventions (BPZ.jl)
 #   - FockBasis state ordering or normalization (FockSpace.jl)
 #   - modified_vertex propagator factor formula
+#   - cache filename / sidecar layout itself
 # ----------------------------------------------------------------
-const CACHE_VERSION = "v9_primary_vertex_jacobian_fix"
+const CACHE_VERSION = "v10_per_charge_cutoffs_sidecar"
 # History:
+#   v10_per_charge_cutoffs_sidecar — TruncationSpec now per-charge level
+#                                    cutoffs (Dict{Int,Int} for bond and
+#                                    phys). Cache filename embeds an
+#                                    8-char hash of the cutoffs spec, with
+#                                    a JSON sidecar (one per (R, so, trunc,
+#                                    shape) tuple) decoding the hash to
+#                                    the full spec. Backward-compat path:
+#                                    `TruncationSpec(h_bond, h_phys; R)`
+#                                    constructs the per-charge cutoffs
+#                                    via `uniform_cutoffs`. Old v9 files
+#                                    are silently ignored.
 #   v9_primary_vertex_jacobian_fix — primary_vertex parameterised by boundary
 #                                     scaling dimension Δ (= 2 h_bulk for charged
 #                                     primaries; = h_chiral for chiral primaries).
@@ -94,15 +108,89 @@ function set_cache_dir(dir::String)
     dir
 end
 
-function _cache_path(cft::CompactBosonCFT, ell::Float64, series_order::Int;
-                     shape::Symbol = :T)
+# ----------------------------------------------------------------
+# Truncation hashing.
+#
+# A vertex cache file's full identity = (R, series_order, truncation
+# spec, shape, ell). We fingerprint the truncation spec into 8 hex
+# chars. A JSON sidecar (named the same as the .jld2 minus _ell..., +
+# .json) decodes the hash back to the full spec so files can be audited.
+# ----------------------------------------------------------------
+
+"""
+    truncation_hash(trunc::TruncationSpec) -> String
+
+8-char hex fingerprint of the (bond_cutoffs, phys_cutoffs) pair.
+Stable across sessions: charge keys are sorted before serialisation.
+"""
+function truncation_hash(trunc::TruncationSpec)
+    sorted_pairs(c) = [(string(n), c[n]) for n in sort(collect(keys(c)))]
+    canonical = (; bond_cutoffs = sorted_pairs(trunc.bond_cutoffs),
+                   phys_cutoffs = sorted_pairs(trunc.phys_cutoffs))
+    str = JSON.json(canonical)
+    bytes2hex(sha256(str))[1:8]
+end
+
+"""
+    truncation_spec_dict(trunc::TruncationSpec) -> Dict
+
+Plain-data representation of the truncation spec, suitable for
+JSON serialisation. Charge keys become strings (JSON requirement).
+"""
+function truncation_spec_dict(trunc::TruncationSpec)
+    Dict(
+        "bond_cutoffs" => Dict(string(n) => trunc.bond_cutoffs[n]
+                                for n in sort(collect(keys(trunc.bond_cutoffs)))),
+        "phys_cutoffs" => Dict(string(n) => trunc.phys_cutoffs[n]
+                                for n in sort(collect(keys(trunc.phys_cutoffs)))),
+        "h_bond_eff"   => trunc.h_bond,
+        "h_phys_eff"   => trunc.h_phys,
+    )
+end
+
+function _cache_dir()
     dir = _CACHE_DIR[]
     dir === nothing && error(
         "Cache directory not set. Call CFTTruncation.set_cache_dir(\"path\") first.")
-    R = cft.R; hb = cft.trunc.h_bond; hp = cft.trunc.h_phys
-    shape_tag = String(shape)
-    joinpath(dir,
-        "vertex_$(CACHE_VERSION)_$(shape_tag)_R$(R)_hb$(hb)_hp$(hp)_ell$(ell)_so$(series_order).jld2")
+    dir
+end
+
+function _cache_stem(cft::CompactBosonCFT, series_order::Int, shape::Symbol)
+    th = truncation_hash(cft.trunc)
+    "vertex_$(CACHE_VERSION)_$(String(shape))_R$(cft.R)_so$(series_order)_t$(th)"
+end
+
+function _cache_path(cft::CompactBosonCFT, ell::Float64, series_order::Int;
+                     shape::Symbol = :T)
+    joinpath(_cache_dir(), "$(_cache_stem(cft, series_order, shape))_ell$(ell).jld2")
+end
+
+function _sidecar_path(cft::CompactBosonCFT, series_order::Int; shape::Symbol = :T)
+    joinpath(_cache_dir(), "$(_cache_stem(cft, series_order, shape)).json")
+end
+
+"""
+    write_sidecar(cft, series_order; shape) -> String
+
+Write (or re-write) the JSON sidecar describing the truncation spec
+behind a cache hash. Returns the sidecar path. Idempotent.
+"""
+function write_sidecar(cft::CompactBosonCFT, series_order::Int; shape::Symbol = :T)
+    path = _sidecar_path(cft, series_order; shape = shape)
+    payload = Dict(
+        "cache_version" => CACHE_VERSION,
+        "R"             => cft.R,
+        "c"             => cft.c,
+        "series_order"  => series_order,
+        "shape"         => String(shape),
+        "trunc_hash"    => truncation_hash(cft.trunc),
+        "trunc"         => truncation_spec_dict(cft.trunc),
+    )
+    mkpath(dirname(path))
+    open(path, "w") do io
+        JSON.print(io, payload, 2)
+    end
+    path
 end
 
 function _load_vertex(path::String)
