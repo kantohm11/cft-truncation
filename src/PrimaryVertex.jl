@@ -1,6 +1,75 @@
 """
 Primary vertex: boundary 3-point function on the UHP with Jacobian factors.
+
+Factored into three reusable pieces so that test vectors with non-charged
+primary insertions (e.g., the U(1) current `J(z)` at chiral weight 1) can
+be predicted with the same machinery and compared to the Ward-recursion
+output. See `test/test_primary_jacobian.jl` for the convention check.
 """
+
+# ----------------------------------------------------------------------------
+# Building blocks (preserve current numerical behaviour exactly).
+# ----------------------------------------------------------------------------
+
+"""
+    uhp_3pt_correlator(h_L, h_R, h_T, x_L, x_R, x_T; C=1.0) -> Float64
+
+UHP boundary-3-pt-function value `C / (|x_LR|^{h_L+h_R-h_T} ·
+|x_RT|^{h_R+h_T-h_L} · |x_LT|^{h_L+h_T-h_R})`. The exponents use the
+weights `h_i` directly (the chiral pattern), with `C` the OPE coefficient
+(default 1 for the compact-boson identity channel).
+"""
+function uhp_3pt_correlator(h_L::Real, h_R::Real, h_T::Real,
+                            x_L::Real, x_R::Real, x_T::Real;
+                            C::Real = 1.0)
+    d_LR = abs(x_L - x_R)
+    d_RT = abs(x_R - x_T)
+    d_LT = abs(x_L - x_T)
+    Float64(C) / (d_LR^(h_L + h_R - h_T) *
+                  d_RT^(h_R + h_T - h_L) *
+                  d_LT^(h_L + h_T - h_R))
+end
+
+"""
+    primary_jacobian_factor(α_L, α_R, α_T, h_L, h_R, h_T) -> Float64
+
+The local-frame-to-global Jacobian decoration `∏ |α_i|^{2 h_i}` applied
+to a UHP boundary correlator to produce the vertex amplitude. This is
+the **current convention**; the sign and magnitude of the exponent are
+the subject of an ongoing convention check (see
+`test/test_primary_jacobian.jl`). Independent of how this is interpreted
+physically, the formula is fixed here so that downstream code keeps
+producing identical numbers to before this refactor.
+"""
+function primary_jacobian_factor(α_L::Real, α_R::Real, α_T::Real,
+                                 h_L::Real, h_R::Real, h_T::Real)
+    abs(α_L)^(2 * h_L) * abs(α_R)^(2 * h_R) * abs(α_T)^(2 * h_T)
+end
+
+"""
+    primary_vertex_from_h(h_L, h_R, h_T, geom::Geometry; C=1.0) -> Float64
+
+Primary 3-pt vertex from explicit conformal weights. Combines
+`uhp_3pt_correlator` and `primary_jacobian_factor` using the geometry's
+α's and x's. Useful for non-charged primary insertions (e.g., chiral
+currents `J(z)` at h=1) where the standard `(n_i, R)`-driven wrapper
+doesn't directly apply.
+"""
+function primary_vertex_from_h(h_L::Real, h_R::Real, h_T::Real,
+                               geom::Geometry; C::Real = 1.0)
+    x_L = geom.arms.L.x; x_R = geom.arms.R.x; x_T = geom.arms.T.x
+    α_L = abs(geom.arms.L.α)
+    α_R = abs(geom.arms.R.α)
+    α_T = abs(geom.arms.T.α)
+
+    uhp = uhp_3pt_correlator(h_L, h_R, h_T, x_L, x_R, x_T; C = C)
+    jac = primary_jacobian_factor(α_L, α_R, α_T, h_L, h_R, h_T)
+    jac * uhp
+end
+
+# ----------------------------------------------------------------------------
+# Public charged-primary entry points (T-shape and cross).
+# ----------------------------------------------------------------------------
 
 """
     primary_vertex(n_L, n_R, n_T, geom::Geometry, R::Real) -> Float64
@@ -17,7 +86,6 @@ Formula: V = ∏_i |α_i|^{2h_i} · 1 / (|x_L-x_R|^{h_L+h_R-h_T}
                                      · |x_L-x_T|^{h_L+h_T-h_R})
 """
 function primary_vertex(n_L::Int, n_R::Int, n_T::Int, geom::Geometry, R::Real)
-    # Momentum conservation
     n_L + n_R + n_T == 0 || return 0.0
 
     R = Float64(R)
@@ -25,25 +93,7 @@ function primary_vertex(n_L::Int, n_R::Int, n_T::Int, geom::Geometry, R::Real)
     h_R = (n_R / R)^2 / 2
     h_T = (n_T / R)^2 / 2
 
-    α_L = abs(geom.arms.L.α)
-    α_R = abs(geom.arms.R.α)
-    α_T = abs(geom.arms.T.α)
-
-    x_L = geom.arms.L.x  # -1
-    x_R = geom.arms.R.x  #  1
-    x_T = geom.arms.T.x  #  0
-
-    jacobian = α_L^(2 * h_L) * α_R^(2 * h_R) * α_T^(2 * h_T)
-
-    # Boundary 3-pt: C / (|x_LR|^{h_L+h_R-h_T} · |x_RT|^{h_R+h_T-h_L} · |x_LT|^{h_L+h_T-h_R})
-    # For compact boson C = 1
-    d_LR = abs(x_L - x_R)  # 2
-    d_RT = abs(x_R - x_T)  # 1
-    d_LT = abs(x_L - x_T)  # 1
-
-    denom = d_LR^(h_L + h_R - h_T) * d_RT^(h_R + h_T - h_L) * d_LT^(h_L + h_T - h_R)
-
-    jacobian / denom
+    primary_vertex_from_h(h_L, h_R, h_T, geom; C = 1.0)
 end
 
 """
