@@ -186,29 +186,29 @@ f(p) = 0 from the T arm expansion, so ξ_T(p) = exp(iπ·0/ℓ) = 1.
 
 This gives Neumann series R_conv = 1 for the T arm, matching the
 natural convention already satisfied by the L/R arms.
+
+ρ₀^T = (iℓ/π) log(p) − ∫_0^p [f'(z) + iℓ/(πz)] dz.
+
+The integrand `f'(z) + iℓ/(πz)` is smooth at z = 0 (the simple pole
+is subtracted analytically) and has √(p − z) behaviour at z = p (the
+SC branch point). Composite Simpson with t = √(p − z) substitution
+at the upper endpoint achieves O(h⁴). This replaces an earlier
+series-truncation evaluation of f_T(p) at z = p, which sat exactly
+on the radius of convergence and converged only as O(N^{−1/2}).
 """
-function _compute_rho0_T(sc::SCParams)
+function _compute_rho0_T(sc::SCParams; npts::Int = 20000)
     p = sc.p
     ℓ = sc.ell
+    C = sc.C
 
-    fprime_T = _expand_fprime_at_T(sc.C, sc.p, 41)
-    fprime_reg_T = regular_part(fprime_T)
-
-    rho_T = zeros(ComplexF64, 41)
-    for n in 1:40
-        rho_T[n + 1] = fprime_reg_T[n - 1] / n
+    g = z -> begin
+        fp = -C * sqrt(complex(z * z - p * p)) / (z * (1 - z * z))
+        fp + im * ℓ / (π * z)
     end
+    integral = _simpson_sqrt_at_b(g, 0.0, p, npts)
 
-    # f_T(p) with ρ₀^T = 0: Res_T · log(p) + Σ ρ_n · p^n
-    f_T_at_p = (-im * ℓ / π) * log(Complex(p))
-    zp = ComplexF64(1)
-    for n in 1:40
-        zp *= p
-        f_T_at_p += rho_T[n + 1] * zp
-    end
-
-    # Target f(p) = 0 so that ξ_T(p) = exp(iπ/ℓ · 0) = +1
-    -f_T_at_p
+    target_reg = (im * ℓ / π) * log(Complex(p))
+    target_reg - integral
 end
 
 """

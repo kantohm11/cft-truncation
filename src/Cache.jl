@@ -27,8 +27,17 @@ using SHA: sha256
 #   - modified_vertex propagator factor formula
 #   - cache filename / sidecar layout itself
 # ----------------------------------------------------------------
-const CACHE_VERSION = "v10_per_charge_cutoffs_sidecar"
+const CACHE_VERSION = "v11_rho0_T_simpson"
 # History:
+#   v11_rho0_T_simpson — T-arm ρ₀ now computed by Simpson integration with
+#                         t² substitution at the √-branch endpoint + pole
+#                         subtraction at z = 0, replacing the slowly-
+#                         converging N=41 series truncation evaluated at
+#                         |z| = R_conv = p. Accuracy ~1e−12 at npts=20000,
+#                         vs ~1e−4 (small ℓ) to ~1e−5 (moderate ℓ) before.
+#                         All T-shape vertex values shift at the level of
+#                         the old truncation error; mostly affects high-h
+#                         descendants on the T arm.
 #   v10_per_charge_cutoffs_sidecar — TruncationSpec now per-charge level
 #                                    cutoffs (Dict{Int,Int} for bond and
 #                                    phys). Cache filename embeds an
