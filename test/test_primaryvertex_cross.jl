@@ -22,33 +22,33 @@ using CFTTruncation: compute_geometry_cross, primary_vertex
     end
 
     @testset "Reduces to T-shape formula when n_B = 0" begin
-        # With n_B = 0, h_B = 0, so |α_B|^{2h_B} = 1 and B contributes
+        # With n_B = 0, Δ_B = 0 so |α_B|^{−Δ_B} = 1 and B contributes
         # nothing to the finite-pair distance product. The cross answer
-        # for (n_L, n_R, n_T, 0) should match what the T-shape formula
-        # gives for (n_L, n_R, n_T), evaluated with the cross geometry's
-        # α_L, α_R, α_T.
+        # for (n_L, n_R, n_T, 0) at R=1 with (n_L=1, n_R=-1) is then
+        # the T-shape 3-pt:
+        #   Jacobian = (1/|α_L|)·(1/|α_R|)
+        #   distance = |x_L − x_R|^{2·1·(−1)} = 2^{−2} = 1/4
+        # ⇒ V = 1 / (4 · |α_L| · |α_R|).
         geom = compute_geometry_cross(1.0, 10)
         α_L = abs(geom.arms.L.α)
         α_R = abs(geom.arms.R.α)
-        # (n_L=1, n_R=-1, n_T=0, n_B=0): h_L=h_R=1/2.
-        # Jacobian = |α_L|·|α_R|, finite-pair factor |x_L-x_R|^{p_L·p_R} = 2^{-1}.
-        expected = α_L * α_R * 2.0^(-1)
+        expected = 1.0 / (4 * α_L * α_R)
         @test primary_vertex(1, -1, 0, 0, geom, 1.0) ≈ expected  rtol=1e-12
     end
 
     @testset "Four-charge case with explicit formula" begin
-        # (n_L, n_R, n_T, n_B) = (1, 1, -1, -1) at R=1:
-        #   h_i = 1/2 for all four, p_i = ±1.
-        #   Jacobian = ∏|α_i|.
-        #   Finite pairs (L,R), (L,T), (R,T):
-        #     |x_L-x_R|^{p_L·p_R} = 2^{+1} = 2
-        #     |x_L-x_T|^{p_L·p_T} = 1^{-1} = 1
-        #     |x_R-x_T|^{p_R·p_T} = 1^{-1} = 1
-        #   V = 2 · ∏|α_i|.
+        # (n_L, n_R, n_T, n_B) = (1, 1, −1, −1) at R=1:
+        #   Δ_i = 1 for all four, p_i = ±1.
+        #   Jacobian = ∏ (1/|α_i|).
+        #   Finite-pair factors |x_ij|^{2 p_i p_j}:
+        #     |x_L−x_R|^{2·1·1}   = 2²    = 4
+        #     |x_L−x_T|^{2·1·(−1)} = 1^{−2} = 1
+        #     |x_R−x_T|^{2·1·(−1)} = 1^{−2} = 1
+        #   V = 4 / (∏|α_i|).
         geom = compute_geometry_cross(1.0, 10)
         α_prod = abs(geom.arms.L.α) * abs(geom.arms.R.α) *
                  abs(geom.arms.T.α) * abs(geom.arms.B.α)
-        @test primary_vertex(1, 1, -1, -1, geom, 1.0) ≈ 2 * α_prod  rtol=1e-12
+        @test primary_vertex(1, 1, -1, -1, geom, 1.0) ≈ 4.0 / α_prod  rtol=1e-12
     end
 
     @testset "Horizontal Z₂: L↔R symmetry" begin

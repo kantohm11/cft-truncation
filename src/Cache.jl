@@ -24,8 +24,19 @@ using JLD2
 #   - FockBasis state ordering or normalization (FockSpace.jl)
 #   - modified_vertex propagator factor formula
 # ----------------------------------------------------------------
-const CACHE_VERSION = "v8_shape_tag"
+const CACHE_VERSION = "v9_primary_vertex_jacobian_fix"
 # History:
+#   v9_primary_vertex_jacobian_fix — primary_vertex parameterised by boundary
+#                                     scaling dimension Δ (= 2 h_bulk for charged
+#                                     primaries; = h_chiral for chiral primaries).
+#                                     Jacobian rule fixed to (1/α)^Δ per leg
+#                                     (was |α|^{+2 h_bulk}, opposite sign and
+#                                     half-magnitude in the distance exponent).
+#                                     All non-zero-charge vertex values change;
+#                                     charge-0 sector unaffected. See
+#                                     experiments/scripts/jacobian_jjvac_check.jl
+#                                     and test/test_primary_jacobian.jl for
+#                                     the convention-derivation check.
 #   v8_shape_tag — cache filename now embeds a shape tag (T or cross) so
 #                   the two vertex types coexist on disk without collision.
 #                   This is a BREAKING change: prior on-disk cache files

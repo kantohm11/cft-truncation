@@ -21,9 +21,10 @@ using CFTTruncation: compute_geometry, primary_vertex
         geom = compute_geometry(1.0, 5)
         α_L = geom.arms.L.α
         α_R = geom.arms.R.α
-        # V(1,-1,0) = |α_L|·|α_R| / |x_L - x_R|^{2h_L} where h_L = 1/2
-        # |x_L - x_R| = 2, so the factor is 1/2
-        @test primary_vertex(1, -1, 0, geom, 1.0) ≈ abs(α_L) * abs(α_R) / 2
+        # V(1,-1,0) at R=1: charges are boundary-doubled, Δ_L = Δ_R = 1, Δ_T = 0.
+        # Jacobian = (1/|α_L|)·(1/|α_R|), distance factor = 1/|x_L − x_R|² = 1/4.
+        # ⇒ V = 1 / (4 · |α_L| · |α_R|).
+        @test primary_vertex(1, -1, 0, geom, 1.0) ≈ 1.0 / (4 * abs(α_L) * abs(α_R))
     end
 
     @testset "8.4 L↔R symmetry" begin
