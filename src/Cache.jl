@@ -18,13 +18,15 @@ using SHA: sha256
 # Version tag — embedded in cache filenames for invalidation.
 #
 # BUMP CACHE_VERSION when changing any of:
-#   - _compute_vertex_raw, _recurse_entry, _apply_Jk_on_arm_sparse (Recursion.jl)
+#   - _compute_vertex_raw, _recurse_entry, _apply_Jk_on_arm_sparse (VertexRecursion.jl)
+#   - _compute_vertex_raw_cross, _recurse_entry_cross, _apply_Jk_on_arm_sparse_cross (VertexRecursionCross.jl)
 #   - compute_geometry (LocalCoordinates.jl)
+#   - compute_geometry_cross (LocalCoordinatesCross.jl)
 #   - compute_neumann (NeumannCoefficients.jl)
 #   - primary_vertex (PrimaryVertex.jl)
 #   - BPZ conventions (BPZ.jl)
 #   - FockBasis state ordering or normalization (FockSpace.jl)
-#   - modified_vertex propagator factor formula
+#   - modified_vertex propagator factor formula (VertexProjections.jl)
 #   - cache filename / sidecar layout itself
 # ----------------------------------------------------------------
 const CACHE_VERSION = "v11_rho0_T_simpson"

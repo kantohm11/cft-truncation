@@ -479,16 +479,21 @@ basis = build_fock_basis(1.0, 3.0)
 
 $$z_\lambda = \prod_{j \ge 1} j^{m_j} \, m_j!$$
 
+The unit-norm factors $z_\lambda$ are **not** stored on `FockBasis` — they
+are absorbed into the $J_k$ matrix coefficients $\sqrt{k\,m_k}$ in
+`JMatrices.jl`. The standalone helper `_compute_z_lambda(λ)` exists for
+diagnostic/conversion code that needs the raw factor (e.g. converting
+$J_{-\lambda}|0\rangle$ to the unit-normalised basis vector).
+
 ```julia
-basis = build_fock_basis(1.0, 3.0)
-zl = basis.z_lambda[0]
-@test zl[1] ≈ 1.0      # z_{∅} = 1
-@test zl[2] ≈ 1.0      # z_{[1]} = 1¹·1! = 1
-@test zl[3] ≈ 2.0      # z_{[2]} = 2¹·1! = 2
-@test zl[4] ≈ 2.0      # z_{[1,1]} = 1²·2! = 2
-@test zl[5] ≈ 3.0      # z_{[3]} = 3¹·1! = 3
-@test zl[6] ≈ 2.0      # z_{[2,1]} = 2¹·1!·1¹·1! = 2
-@test zl[7] ≈ 6.0      # z_{[1,1,1]} = 1³·3! = 6
+z = CFTTruncation._compute_z_lambda
+@test z(Int[])         ≈ 1.0      # z_{∅} = 1
+@test z([1])           ≈ 1.0      # z_{[1]} = 1¹·1! = 1
+@test z([2])           ≈ 2.0      # z_{[2]} = 2¹·1! = 2
+@test z([1, 1])        ≈ 2.0      # z_{[1,1]} = 1²·2! = 2
+@test z([3])           ≈ 3.0      # z_{[3]} = 3¹·1! = 3
+@test z([2, 1])        ≈ 2.0      # z_{[2,1]} = 2¹·1!·1¹·1! = 2
+@test z([1, 1, 1])     ≈ 6.0      # z_{[1,1,1]} = 1³·3! = 6
 ```
 
 ### 5.5 Graded space

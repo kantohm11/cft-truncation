@@ -18,12 +18,13 @@ This is NOT (-1)^N (that would be the Virasoro/weight-2 convention).
 
 When editing any of the following, bump `CACHE_VERSION` in `src/Cache.jl` and add a history entry:
 
-- `_compute_vertex_raw`, `_recurse_entry`, `_apply_Jk_on_arm_sparse` (Recursion.jl)
-- `compute_geometry` (LocalCoordinates.jl)
+- `_compute_vertex_raw`, `_recurse_entry`, `_apply_Jk_on_arm_sparse` (VertexRecursion.jl)
+- `_compute_vertex_raw_cross`, `_recurse_entry_cross`, `_apply_Jk_on_arm_sparse_cross` (VertexRecursionCross.jl)
+- `compute_geometry` (LocalCoordinates.jl), `compute_geometry_cross` (LocalCoordinatesCross.jl)
 - `compute_neumann` (NeumannCoefficients.jl)
 - `primary_vertex` (PrimaryVertex.jl)
 - FockBasis state ordering or normalization (FockSpace.jl)
-- `modified_vertex` propagator factor formula
+- `modified_vertex` propagator factor formula (VertexProjections.jl)
 
 BPZ.jl is NOT in this list — BPZ is not used in the vertex recursion or caching.
 

@@ -44,15 +44,19 @@ using LinearAlgebra: norm
     end
 
     @testset "5.4 Normalisation factors z_λ" begin
-        basis = build_fock_basis(1.0, 3.0)
-        zl = basis.z_lambda[0]
-        @test zl[1] ≈ 1.0      # z_{∅} = 1
-        @test zl[2] ≈ 1.0      # z_{[1]} = 1
-        @test zl[3] ≈ 2.0      # z_{[2]} = 2
-        @test zl[4] ≈ 2.0      # z_{[1,1]} = 1²·2! = 2
-        @test zl[5] ≈ 3.0      # z_{[3]} = 3
-        @test zl[6] ≈ 2.0      # z_{[2,1]} = 2
-        @test zl[7] ≈ 6.0      # z_{[1,1,1]} = 1³·3! = 6
+        # The unit-norm factors z_λ = ∏_k k^{m_k} m_k! are *not* stored on
+        # FockBasis — they're baked into the J_k matrix coefficients
+        # √(k·m_k) inside JMatrices.jl. The standalone helper is exercised
+        # here so the formula stays pinned in case a future user needs it
+        # (e.g. to convert a raw J_{-λ}|0⟩ ket to the unit-normalised basis).
+        z = CFTTruncation._compute_z_lambda
+        @test z(Int[])         ≈ 1.0      # z_{∅} = 1
+        @test z([1])           ≈ 1.0      # z_{[1]} = 1
+        @test z([2])           ≈ 2.0      # z_{[2]} = 2
+        @test z([1, 1])        ≈ 2.0      # z_{[1,1]} = 1²·2! = 2
+        @test z([3])           ≈ 3.0      # z_{[3]} = 3
+        @test z([2, 1])        ≈ 2.0      # z_{[2,1]} = 2
+        @test z([1, 1, 1])     ≈ 6.0      # z_{[1,1,1]} = 1³·3! = 6
     end
 
     @testset "5.5 Graded space" begin

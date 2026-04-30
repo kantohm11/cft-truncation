@@ -7,6 +7,7 @@ using LinearAlgebra
 include("TruncLaurent.jl")
 include("SCMap.jl")
 include("LocalCoordinates.jl")
+include("LocalCoordinatesCross.jl")
 include("NeumannCoefficients.jl")
 include("FockSpace.jl")
 include("JMatrices.jl")
@@ -14,7 +15,9 @@ include("BPZ.jl")
 include("PrimaryVertex.jl")
 include("CompactBoson.jl")
 include("Cache.jl")
-include("Recursion.jl")
+include("VertexRecursion.jl")
+include("VertexProjections.jl")
+include("VertexRecursionCross.jl")
 
 # Public API: enough for `using CFTTruncation` to give a notebook
 # everything it needs to build a CFT and compute vertices.

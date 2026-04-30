@@ -9,7 +9,6 @@ struct FockBasis
     cutoffs::Dict{Int, Int}                        # sector n -> max descendant level
     states::Dict{Int, Vector{Vector{Int}}}         # sector n -> partitions (weakly decreasing)
     levels::Dict{Int, Vector{Int}}                 # sector n -> level of each state
-    z_lambda::Dict{Int, Vector{Float64}}           # sector n -> normalization factors
     V::GradedSpace                                 # U1-graded TensorKit space
     partition_index::Dict{Int, Dict{Vector{Int}, Int}}  # sector n -> (partition -> basis index)
 end
@@ -51,17 +50,14 @@ function build_fock_basis(R::Real, cutoffs::Dict{Int, Int})
 
     states = Dict{Int, Vector{Vector{Int}}}()
     levels = Dict{Int, Vector{Int}}()
-    z_lambda = Dict{Int, Vector{Float64}}()
 
     for (n, max_level) in cutoffs
         max_level >= 0 || continue
         parts = _partitions_up_to(max_level)
         lvls = [sum(p; init=0) for p in parts]
-        zls = [_compute_z_lambda(p) for p in parts]
 
         states[n] = parts
         levels[n] = lvls
-        z_lambda[n] = zls
     end
 
     # Effective h_max for downstream code that reads it.
@@ -85,7 +81,7 @@ function build_fock_basis(R::Real, cutoffs::Dict{Int, Int})
         partition_index[n] = pidx
     end
 
-    FockBasis(R_f, h_max_eff, cutoffs, states, levels, z_lambda, V, partition_index)
+    FockBasis(R_f, h_max_eff, cutoffs, states, levels, V, partition_index)
 end
 
 # Backward-compat: uniform h_max cap.
