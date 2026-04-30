@@ -67,4 +67,38 @@ using SparseArrays: sparse, nnz
         end
     end
 
+    # Generalises 6.4–6.5 to k = 1..5 across all charge sectors and
+    # adds the off-diagonal vanishing [J_k, J_{-l}] = 0 (k ≠ l) plus the
+    # adjoint property J_k = transpose(J_{-k}). All are exact algebraic
+    # identities in the unit-normalised basis (worst-case error 0.0).
+    @testset "6.6 Heisenberg algebra across sectors and k ≥ 1" begin
+        basis = build_fock_basis(1.0, 5.0)
+        k_max = 5
+        J, _ = build_J_matrices(basis, k_max)
+        for n in keys(basis.states)
+            for k in 1:k_max
+                Jk = J[n][k + 1]
+                Jmk = build_creation_matrix(basis, n, k)
+                @test Jk == transpose(Jmk)
+
+                cap = basis.cutoffs[n]
+                safe_kk = findall(l -> l + k ≤ cap, basis.levels[n])
+                comm_kk = Jk * Jmk - Jmk * Jk
+                for i in safe_kk
+                    @test comm_kk[i, i] ≈ k atol=1e-12
+                end
+
+                for l in 1:k_max
+                    l == k && continue
+                    Jml = build_creation_matrix(basis, n, l)
+                    comm_kl = Jk * Jml - Jml * Jk
+                    safe_kl = findall(lvl -> lvl + l ≤ cap, basis.levels[n])
+                    for i in safe_kl
+                        @test comm_kl[i, i] ≈ 0.0 atol=1e-12
+                    end
+                end
+            end
+        end
+    end
+
 end

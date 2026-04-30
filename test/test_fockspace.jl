@@ -1,6 +1,8 @@
 using Test
 using CFTTruncation: build_fock_basis, FockBasis
-using TensorKit: dim, U1Irrep, GradedSpace
+using TensorKit
+using TensorKit: dim, U1Irrep, GradedSpace, fusiontrees, Vect
+using LinearAlgebra: norm
 
 @testset "FockSpace" begin
 
@@ -60,6 +62,66 @@ using TensorKit: dim, U1Irrep, GradedSpace
         @test dim(V, U1Irrep(0)) == 4
         @test dim(V, U1Irrep(1)) == 2
         @test dim(V, U1Irrep(3)) == 0
+    end
+
+    # The unit-normalised Fock convention requires that TensorKit's `norm`
+    # and `dot` on Vect[U1Irrep](...) reduce to the standard Euclidean
+    # inner product on block-coefficient vectors. If a future TensorKit
+    # version applied any non-trivial metric (e.g. quantum-dim weights),
+    # the Heisenberg algebra coefficients in JMatrices.jl would silently
+    # disagree with TensorKit's inner product. These tests guard against
+    # that.
+    @testset "5.6 TensorKit norm = Euclidean on block coefficients" begin
+        basis = build_fock_basis(1.0, 3.0)
+        V = basis.V
+
+        # Random covector V → 1.
+        for _ in 1:3
+            t = zeros(Float64, V, one(V))
+            raw_sum = 0.0
+            for (f₁, f₂) in fusiontrees(t)
+                blk = t[f₁, f₂]
+                for i in eachindex(blk)
+                    blk[i] = randn()
+                    raw_sum += blk[i]^2
+                end
+                t[f₁, f₂] = blk
+            end
+            @test norm(t) ≈ sqrt(raw_sum) atol=1e-12
+        end
+
+        # Trilinear vertex shape 1 → V ⊗ V ⊗ V.
+        for _ in 1:3
+            t = zeros(Float64, one(V), V ⊗ V ⊗ V)
+            raw_sum = 0.0
+            for (f₁, f₂) in fusiontrees(t)
+                blk = t[f₁, f₂]
+                for i in eachindex(blk)
+                    blk[i] = randn()
+                    raw_sum += blk[i]^2
+                end
+                t[f₁, f₂] = blk
+            end
+            @test norm(t) ≈ sqrt(raw_sum) atol=1e-12
+        end
+    end
+
+    @testset "5.7 Single-entry kets: norm = |entry| in every charge sector" begin
+        basis = build_fock_basis(1.0, 3.0)
+        V = basis.V
+        for n in keys(basis.states)
+            aux = Vect[U1Irrep](U1Irrep(n) => 1)
+            for α in 1:length(basis.states[n])
+                t = zeros(Float64, V, aux)
+                for (f₁, f₂) in fusiontrees(t)
+                    Int(f₁.uncoupled[1].charge) == n || continue
+                    blk = t[f₁, f₂]
+                    blk[α, 1] = 1.5
+                    t[f₁, f₂] = blk
+                end
+                @test norm(t) ≈ 1.5 atol=1e-14
+            end
+        end
     end
 
 end
