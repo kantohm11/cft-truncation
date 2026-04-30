@@ -101,4 +101,78 @@ using SparseArrays: sparse, nnz
         end
     end
 
+    # Pin every matrix element of J_k and J_{-k} to its expected value in
+    # the unit-orthonormal basis:
+    #   ⟨μ̂|J_k|λ̂⟩    = √(k·m_k(λ))         with μ = λ \ {k}, m_k(λ) ≥ 1
+    #   ⟨μ̂|J_{-k}|λ̂⟩ = √(k·(m_k(λ)+1))     with μ = λ ∪ {k}
+    # All other entries in each column are exactly zero.
+    #
+    # Why this complements 6.4–6.6: those tests pin the algebra (adjoint,
+    # diagonal commutator, off-diagonal vanishing). Together they pin J_k
+    # only up to a per-state sign (|λ̂⟩ → ε_λ |λ̂⟩ with ε_λ = ±1 leaves
+    # adjoint and commutator invariant). 6.7 picks the natural sign
+    # (positive coefficients) and asserts magnitudes directly, so a uniform
+    # √(k·m_k) → c·√(k·m_k) error or a sign-flip per state would be caught.
+    @testset "6.7 Direct pin-down of J_k / J_{-k} coefficients" begin
+        basis = build_fock_basis(1.0, 4.0)
+        k_max = 4
+        J, _ = build_J_matrices(basis, k_max)
+
+        remove_one(λ, k) = (μ = copy(λ); deleteat!(μ, findfirst(==(k), μ)); μ)
+        add_one(λ, k)    = sort!(vcat(λ, k); rev=true)
+
+        for n in sort(collect(keys(basis.states)))
+            parts = basis.states[n]
+            for k in 1:k_max
+                Jk  = J[n][k + 1]
+                Jmk = build_creation_matrix(basis, n, k)
+
+                for (col, λ) in enumerate(parts)
+                    mk_λ = count(==(k), λ)
+
+                    # Annihilation J_k: column has exactly one nonzero
+                    # if k ∈ λ, zero otherwise.
+                    nz_rows_a = findall(!=(0.0), Jk[:, col])
+                    if mk_λ == 0
+                        @test isempty(nz_rows_a)
+                    else
+                        @test length(nz_rows_a) == 1
+                        row = nz_rows_a[1]
+                        @test parts[row] == remove_one(λ, k)
+                        @test Jk[row, col] ≈ sqrt(k * mk_λ)
+                    end
+
+                    # Creation J_{-k}: column has exactly one nonzero
+                    # at the row indexing μ = λ ∪ {k}, IF μ is in the
+                    # truncated basis. Otherwise the column is zero.
+                    μ_creation = add_one(λ, k)
+                    target = findfirst(==(μ_creation), parts)
+                    nz_rows_c = findall(!=(0.0), Jmk[:, col])
+                    if target === nothing
+                        @test isempty(nz_rows_c)
+                    else
+                        @test length(nz_rows_c) == 1
+                        @test nz_rows_c[1] == target
+                        @test Jmk[target, col] ≈ sqrt(k * (mk_λ + 1))
+                    end
+                end
+            end
+        end
+
+        # Vacuum spot-check: J_{-k}|0⟩ = √k·|[k]⟩, J_k|0⟩ = 0.
+        # |0⟩ is the empty partition in the n=0 sector.
+        parts0 = basis.states[0]
+        vac = findfirst(==(Int[]), parts0)
+        @test vac !== nothing
+        for k in 1:k_max
+            Jk_0  = J[0][k + 1]
+            Jmk_0 = build_creation_matrix(basis, 0, k)
+            @test all(Jk_0[:, vac] .== 0.0)
+            row_k = findfirst(==([k]), parts0)
+            if row_k !== nothing
+                @test Jmk_0[row_k, vac] ≈ sqrt(k)
+            end
+        end
+    end
+
 end
